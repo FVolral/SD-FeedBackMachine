@@ -1,4 +1,6 @@
-# Animation Script v0.6
+# Animation Script
+A basic img2img script that will dump frames and build a video file. Suitable for creating interesting zoom in warping movies, but not too much else at this time.
+
 Inspired by Deforum Notebook
 Must have ffmpeg installed in path.
 Poor img2img implentation, will trash images that aren't moving.
