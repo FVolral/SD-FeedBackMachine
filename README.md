@@ -43,22 +43,5 @@ E.g. Doesn't much, zoom in, move around, zoom out again. expects animation lengt
     20 | 0.4 | 1.0 |    0 | -250 | | |
     25 | 0.4 | 0.5 |    0 |    0 | | |
 
-# Eaxmple
-![Example GIF](https://github.com/Animator-Anon/Animator/blob/774ef8bccd0d77cd95b7a35d3092d9b8fd65f7cb/test.gif)
-{
-    "Create GIF": false,
-    "Create MP4": false,
-    "Create WEBM": true,
-    "Total Time": "10.0",
-    "FPS": "30",
-    "Initial Denoising Strength": 0.4,
-    "Initial Zoom factor": "2.0",
-    "Initial X Shift": "0",
-    "Initial Y Shift": "0",
-    "Prompt Template, Positive": "",
-    "Prompt Template, Negative": "",
-    "KeyFrames": "2 | 0.4 | 2.0 | 0 | 0 | nice bunch of grapes | |
-    4 | 0.4 | 2.0 | 0 | 0 | tabby cat  | |
-    6 | 0.4 | 2.0 | 0 | 0 | golden retriever | |
-    8 | 0.4 | 2.0 | 0 | 0 | octopus | |"
-}
+# Example
+
