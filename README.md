@@ -34,3 +34,22 @@ This suffers from img2img embossing, if the image is static for too long. I woul
 ## Keyframes:
 Format: Time (s) | Desnoise | Zoom (/s) | X Shift (pix/s) | Y shift (pix/s) | Positive Prompts | Negative Prompts | Seed
 A list of parameter changes to be applied at the specified time. 
+
+# Example
+Start with a nice image rendered from txt2img, with a variety of colours. This will be used to set the colour palette for the animation.
+
+    Total Time: 25
+    FPS: 30
+    Initial Denoising Strength: 0.4
+    Initial Zoom factor: 2.0
+    Initial X Shift: 0
+    Initial Y Shift: 0
+    Prompt Template, Positive:
+     centred, high detail
+    Prompt Template, Negative:
+    KeyFrames:
+     0 | 0.4 | 2.5 | 0 | 0 | nice apple, sitting in fruit bowl, open window, blue sky | |
+     5 | 0.4 | 1 | 00 | 250 | nice bunch of grapes, grapevine | |
+     10 | 0.4 | 1 | 0 | -250 | tabby cat, barn  |  |
+     15 | 0.4 | 1 | 250 | 0 | golden retriever, green field |  |
+     20 | 0.4 | 1 | -250 | 0 | octopus, ocean |  |
