@@ -42,3 +42,6 @@ E.g. Doesn't much, zoom in, move around, zoom out again. expects animation lengt
     15 | 0.4 | 1.0 | -250 |    0 | | |
     20 | 0.4 | 1.0 |    0 | -250 | | |
     25 | 0.4 | 0.5 |    0 |    0 | | |
+
+# Eaxmple
+![caption](https://github.com/Animator-Anon/Animator/test.gif)
