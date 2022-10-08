@@ -1,5 +1,5 @@
 #
-# Animation Script v0.6
+# Animation Script v0.7
 # Inspired by Deforum Notebook
 # Must have ffmpeg installed in path.
 # Poor img2img implentation, will trash images that aren't moving.
@@ -17,6 +17,8 @@
 #   Initial denoising strength value, overrides the value above which is a bit strong for a default. Can be overridden later by keyframes.
 # Denoising Decay:
 #   Experimental option to enable a half-life decay on the denoising strength. Its value is halved every second.
+# Denoising Decay Rate:
+#   Decay rate of change. 0.5 = denoising decay rate is halved.
 #
 # Zoom Factor (scale/s):
 #   Zoom in (>1) or out (<1), at this rate per second. E.g. 2.0 will double size (and crop) every second. Can be overridden later by keyframes.
@@ -221,7 +223,8 @@ class Script(scripts.Script):
         with gr.Row():
             denoising_strength = gr.Slider(label="Denoising Strength, overrides img2img", minimum=0.0, maximum=1.0, step=0.01, value=0.40)
             noise_decay = gr.Checkbox(label="Decay_HalfLife", value=False)
-
+            decay_rate = gr.Slider(label="Decay_Rate", minimum=0.1, maximum=1.5, step=0.01, value=0.50)
+            
         with gr.Row():
             add_noise = gr.Checkbox(label="Add_Noise", value=False)
             noise_strength = gr.Slider(label="Noise Strength", minimum=0.0, maximum=1.0, step=0.01, value=0.10)
@@ -237,9 +240,9 @@ class Script(scripts.Script):
         
         i4 = gr.HTML("<p style=\"margin-bottom:0.75em\">Keyframe Format: <br>Time (s) | Desnoise | Zoom (/s) | X Shift (pix/s) | Y shift (pix/s) | Positive Prompts | Negative Prompts | Seed</p>")
         prompts = gr.Textbox(label="Keyframes:", lines=5, value="")
-        return [i1, i2, i3, i4, totaltime, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg, prompts, denoising_strength, x_shift, y_shift, noise_decay, add_noise, noise_strength]
+        return [i1, i2, i3, i4, totaltime, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg, prompts, denoising_strength, x_shift, y_shift, noise_decay, add_noise, noise_strength,decay_rate]
  
-    def run(self, p, i1, i2, i3, i4, totaltime, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg, prompts, denoising_strength, x_shift, y_shift, noise_decay, add_noise, noise_strength):
+    def run(self, p, i1, i2, i3, i4, totaltime, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg, prompts, denoising_strength, x_shift, y_shift, noise_decay, add_noise, noise_strength,decay_rate):
       
         outfilename =  time.strftime('%Y%m%d%H%M%S')
         outpath =  os.path.join(p.outpath_samples, outfilename)
@@ -313,7 +316,7 @@ class Script(scripts.Script):
         p.denoising_strength = denoising_strength 
         #For half life, or 0.5x every second, formula:
         # decay_mult =  1/(2^(1/FPS))
-        decay_mult = 1 / (2 ** (1 / int(fps)))
+        decay_mult = 1 / (2 ** (float(decay_rate) / int(fps)))
         #Zoom FPS scaler = zoom ^ (1/FPS)
         zoom_factor = float(zoom_factor) ** (1/float(fps))
         
