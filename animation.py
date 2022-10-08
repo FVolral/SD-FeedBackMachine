@@ -4,45 +4,7 @@
 # Must have ffmpeg installed in path.
 # Poor img2img implentation, will trash images that aren't moving.
 #
-# Explanation of settings:
-# Video formats:
-#   Create GIF, webM or MP4 file from the series of images. Regardless, .bat files will be created with the right options to make the videos at a later time.
-#
-# Total Animation Length (s):
-#   Total number of seconds to create. Will create fps frames for every second, as you'd expect.
-# Framerate:
-#   Frames per second to generate.
-#
-# Denoising Strength:
-#   Initial denoising strength value, overrides the value above which is a bit strong for a default. Can be overridden later by keyframes.
-# Denoising Decay:
-#   Experimental option to enable a half-life decay on the denoising strength. Its value is halved every second.
-# Denoising Decay Rate:
-#   Decay rate of change. 0.5 = denoising decay rate is halved.
-#
-# Zoom Factor (scale/s):
-#   Zoom in (>1) or out (<1), at this rate per second. E.g. 2.0 will double size (and crop) every second. Can be overridden later by keyframes.
-# X Pixel Shift (pixels/s):
-#   Shift the image right (+) or left (-) in pixels per second. Can be overridden later by keyframes.
-# Y Pixel Shift (pixels/s):
-#   Shift the image down (+) or up (-) in pixels per second. Can be overridden later by keyframes.
-#
-# Templates: Can be used with keyframes. if not used, img2img prompts or keyframes will be used.
-# Positive Prompts:
-#   A template for positive prompts that will be added to every keyframe prompt. Allows you to apply a style to an animation.
-# Negative Prompts:
-#   A template for negative prompts that will be added to every keyframe prompt. Allows you to apply a style to an animation.
-#
-# Keyframes:
-# Format: Time (s) | Desnoise | Zoom (/s) | X Shift (pix/s) | Y shift (pix/s) | Positive Prompts | Negative Prompts
-# E.g. Doesn't much, zoom in, move around, zoom out again. expects animation length to be greater than 25s. Prompts blank, templates or the img2img values will be used.
-#    0 | 0.4 | 2.0 |    0 |    0 | | |
-#    5 | 0.4 | 1.0 |  250 |    0 | | |
-#   10 | 0.4 | 1.0 |    0 |  250 | | |
-#   15 | 0.4 | 1.0 | -250 |    0 | | |
-#   20 | 0.4 | 1.0 |    0 | -250 | | |
-#   25 | 0.4 | 0.5 |    0 |    0 | | |
-
+# See https://github.com/Animator-Anon/Animator
 
 import os, time
 import modules.scripts as scripts
@@ -58,34 +20,37 @@ import json
 import cv2
 import torch
 
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageDraw
  
 def zoom_at2(img, x, y, zoom):
     w, h = img.size
-    z = float(zoom)
-    #Zoom image
-    img2 = img.resize((int(w*z), int(h*z)), Image.Resampling.LANCZOS)    
 
-    #Crate background image
-    padding=4    
-    resimg = img.resize((w+padding*2, h+padding*2), Image.Resampling.LANCZOS).\
+    #Zoom image
+    img2 = img.resize((int(w*zoom), int(h*zoom)), Image.Resampling.LANCZOS)    
+    
+    #Create background image
+    padding=2    
+    resimg = addnoise(img.copy(), 0.75).resize((w+padding*2, h+padding*2), Image.Resampling.LANCZOS).\
                 filter(ImageFilter.GaussianBlur(5)).\
                 crop((padding,padding,w+padding,h+padding))
-        
+    
     resimg.paste(img2, (int((w - img2.size[0])/2 + x),int((h - img2.size[1])/2 + y)))
-
+    
     return resimg
  
 def addnoise(img, percent):
-    numpy_image = np.array(img)
-    
-    row,col,ch = numpy_image.shape
-    mean = 0
-    sigma = percent**0.5
-    gauss = np.random.normal(mean,sigma,(row,col,ch)) 
-    gauss = gauss.reshape(row,col,ch).astype('uint8')
+    #Draw coloured circles randomly over the image. Lame, but for testing.
+    #print("Noise function")
+    w2, h2 = img.size
+    draw = ImageDraw.Draw(img)
+    for i in range(int(50*float(percent))):
+        x2=random.randint(0,w2)
+        y2=random.randint(0,h2)
+        s2=random.randint(0,int(50*float(percent)))
+        pos = (x2, y2, x2 + s2, y2 + s2)
+        draw.ellipse(pos, fill=(random.randint(0,255), random.randint(0,255), random.randint(0,255)), outline=(0, 0, 0))
 
-    return Image.fromarray( numpy_image + gauss)
+    return img
  
 def opencvtransform(pil_img, angle, translation_x, translation_y, zoom, wrap):
     
@@ -112,7 +77,7 @@ def opencvtransform(pil_img, angle, translation_x, translation_y, zoom, wrap):
     color_coverted = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2RGB)
     return Image.fromarray(color_coverted)
     
-def make_gif(filepath, filename, max_frames, fps, create_vid):
+def make_gif(filepath, filename, fps, create_vid, create_bat):
     #Create filenames
     in_filename = f"{str(filename)}_%05d.png"
     out_filename = f"{str(filename)}.gif"
@@ -125,20 +90,21 @@ def make_gif(filepath, filename, max_frames, fps, create_vid):
         out_filename
     ]
     #create bat file
-    with open(os.path.join(filepath, "makegif.bat"), "w+", encoding="utf-8") as f:
-        f.writelines([" ".join(cmd), "\r\n", "pause"])
+    if create_bat:
+        with open(os.path.join(filepath, "makegif.bat"), "w+", encoding="utf-8") as f:
+            f.writelines([" ".join(cmd), "\r\n", "pause"])
     #Fix paths for normal output
     cmd[5]= os.path.join(filepath, in_filename)
     cmd[6]= os.path.join(filepath, out_filename)
     #create output if requested
     if create_vid:
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            print(stderr)
-            raise RuntimeError(stderr)
+#        stdout, stderr = process.communicate()
+#        if process.returncode != 0:
+#            print(stderr)
+#            raise RuntimeError(stderr)
  
-def make_webm(filepath, filename, max_frames, fps, create_vid):
+def make_webm(filepath, filename, fps, create_vid, create_bat):
  
     in_filename = f"{str(filename)}_%05d.png"
     out_filename = f"{str(filename)}.webm"
@@ -153,20 +119,21 @@ def make_webm(filepath, filename, max_frames, fps, create_vid):
         out_filename
     ]
     
-    with open(os.path.join(filepath, "makewebm.bat"), "w+", encoding="utf-8") as f:
-        f.writelines([" ".join(cmd), "\r\n", "pause"])
+    if create_bat:
+        with open(os.path.join(filepath, "makewebm.bat"), "w+", encoding="utf-8") as f:
+            f.writelines([" ".join(cmd), "\r\n", "pause"])
     
     cmd[5]= os.path.join(filepath, in_filename)
     cmd[10]= os.path.join(filepath, out_filename)
     
     if create_vid:
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            print(stderr)
-            raise RuntimeError(stderr)
+#        stdout, stderr = process.communicate()
+#        if process.returncode != 0:
+#            print(stderr)
+#            raise RuntimeError(stderr)
  
-def make_mp4(filepath, filename, max_frames, fps, create_vid):
+def make_mp4(filepath, filename, fps, create_vid, create_bat):
  
     in_filename = f"{str(filename)}_%05d.png"
     out_filename = f"{str(filename)}.mp4"
@@ -176,7 +143,6 @@ def make_mp4(filepath, filename, max_frames, fps, create_vid):
         '-y',
         '-r', str(fps),
         '-i',  in_filename.replace("%","%%"),
-        '-frames:v', str(max_frames),
         '-c:v', 'libx264',
         '-vf',
         f'fps={fps}',
@@ -186,18 +152,19 @@ def make_mp4(filepath, filename, max_frames, fps, create_vid):
         out_filename
     ]
     
-    with open(os.path.join(filepath, "makemp4.bat"), "w+", encoding="utf-8") as f:
-        f.writelines([" ".join(cmd), "\r\n", "pause"])
+    if create_bat:
+        with open(os.path.join(filepath, "makemp4.bat"), "w+", encoding="utf-8") as f:
+            f.writelines([" ".join(cmd), "\r\n", "pause"])
     
     cmd[5]= os.path.join(filepath, in_filename)
-    cmd[18]= os.path.join(filepath, out_filename)
+    cmd[16]= os.path.join(filepath, out_filename)
     
     if create_vid:
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            print(stderr)
-            raise RuntimeError(stderr)
+#        stdout, stderr = process.communicate()
+#        if process.returncode != 0:
+#            print(stderr)
+#            raise RuntimeError(stderr)
  
 class Script(scripts.Script):
  
@@ -219,28 +186,27 @@ class Script(scripts.Script):
         with gr.Row():
             totaltime = gr.Textbox(label="Total Animation Length (s)", lines=1, value="10.0")
             fps = gr.Textbox(label="Framerate", lines=1, value="15")
-        
-        with gr.Row():
-            denoising_strength = gr.Slider(label="Denoising Strength, overrides img2img", minimum=0.0, maximum=1.0, step=0.01, value=0.40)
-            noise_decay = gr.Checkbox(label="Decay_HalfLife", value=False)
-            decay_rate = gr.Slider(label="Decay_Rate", minimum=0.1, maximum=1.5, step=0.01, value=0.50)
-            
         with gr.Row():
             add_noise = gr.Checkbox(label="Add_Noise", value=False)
             noise_strength = gr.Slider(label="Noise Strength", minimum=0.0, maximum=1.0, step=0.01, value=0.10)
-
+        with gr.Row():
+            noise_decay = gr.Checkbox(label="Denoising_Decay", value=False)
+            decay_rate = gr.Slider(label="Denoising Decay Rate", minimum=0.1, maximum=1.9, step=0.01, value=0.50)
+            
+        i5 = gr.HTML("<p style=\"margin-bottom:0.75em\">Initial Parameters</p>")
+        with gr.Row():
+            denoising_strength = gr.Slider(label="Denoising Strength (overrides img2img slider)", minimum=0.0, maximum=1.0, step=0.01, value=0.40)
         with gr.Row():
             zoom_factor = gr.Textbox(label="Zoom Factor (scale/s)", lines=1, value="1.0")
             x_shift = gr.Textbox(label="X Pixel Shift (pixels/s)", lines=1, value="0")
             y_shift = gr.Textbox(label="Y Pixel Shift (pixels/s)", lines=1, value="0")
-        
         i3 = gr.HTML("<p style=\"margin-bottom:0.75em\">Prompt Template, applied to each keyframe below</p>")
         tmpl_pos = gr.Textbox(label="Positive Prompts", lines=1, value="")
         tmpl_neg = gr.Textbox(label="Negative Prompts", lines=1, value="")
         
         i4 = gr.HTML("<p style=\"margin-bottom:0.75em\">Keyframe Format: <br>Time (s) | Desnoise | Zoom (/s) | X Shift (pix/s) | Y shift (pix/s) | Positive Prompts | Negative Prompts | Seed</p>")
         prompts = gr.Textbox(label="Keyframes:", lines=5, value="")
-        return [i1, i2, i3, i4, totaltime, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg, prompts, denoising_strength, x_shift, y_shift, noise_decay, add_noise, noise_strength,decay_rate]
+        return [i1, i2, i3, i4, totaltime, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg, prompts, denoising_strength, x_shift, y_shift, noise_decay, add_noise, noise_strength, decay_rate]
  
     def run(self, p, i1, i2, i3, i4, totaltime, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg, prompts, denoising_strength, x_shift, y_shift, noise_decay, add_noise, noise_strength,decay_rate):
       
@@ -251,23 +217,6 @@ class Script(scripts.Script):
         p.do_not_save_samples = True
         p.do_not_save_grid = True
  
-        #save settings
-        settings_filename = os.path.join(outpath, f"{str(outfilename)}_settings.txt")
-        with open(settings_filename, "w+", encoding="utf-8") as f:
-            sets={}
-            sets["Create GIF"]=vid_gif
-            sets["Create MP4"]=vid_mp4
-            sets["Create WEBM"]=vid_webm
-            sets["Total Time"]=totaltime
-            sets["FPS"]=fps
-            sets["Initial Denoising Strength"]=denoising_strength
-            sets["Initial Zoom factor"]=zoom_factor
-            sets["Initial X Shift"]=x_shift
-            sets["Initial Y Shift"]=y_shift
-            sets["Prompt Template, Positive"]=tmpl_pos
-            sets["Prompt Template, Negative"]=tmpl_neg
-            sets["KeyFrames"]=prompts
-            json.dump(dict(sets), f, ensure_ascii=False, indent=4)        
         
         #Build prompt dict of tuples.
         # format of myprompts[framenumber]=("positive prompt","negative prompt")
@@ -288,21 +237,29 @@ class Script(scripts.Script):
         
         #Save extra parameters for the UI
         p.extra_generation_params = {
-            "Total Time (s)": totaltime, 
-            "FPS": fps, 
             "Create GIF": vid_gif, 
             "Create MP4": vid_mp4, 
             "Create WEBM": vid_webm, 
-            "Prompt Template Positive": tmpl_pos, 
-            "Prompt Template Negative": tmpl_neg, 
-            "Initial Zoom Factor": zoom_factor, 
+            "Total Time (s)": totaltime, 
+            "FPS": fps, 
             "Initial Denoising Strength": denoising_strength, 
-            "Denoise Decay": noise_decay,
+            "Initial Zoom Factor": zoom_factor, 
             "Initial X Pixel Shift": x_shift, 
             "Initial Y Pixel Shift": y_shift,
+            "Add Noise": add_noise,
+            "Noise Percentage": noise_strength,
+            "Denoise Decay": noise_decay,
+            "Denoise Decay Rate": decay_rate,
+            "Prompt Template Positive": tmpl_pos, 
+            "Prompt Template Negative": tmpl_neg, 
             "Keyframe Data": prompts, 
         }
  
+        #save settings, just dump out the extra_generation dict
+        settings_filename = os.path.join(outpath, f"{str(outfilename)}_settings.txt")
+        with open(settings_filename, "w+", encoding="utf-8") as f:
+            json.dump(dict(p.extra_generation_params), f, ensure_ascii=False, indent=4)        
+        
         #Check prompts. If no prompt given, but templates exist, set them.
         if len(p.prompt.strip(",").strip()) == 0:           p.prompt =          tmpl_pos
         if len(p.negative_prompt.strip(",").strip()) == 0:  p.negative_prompt = tmpl_neg
@@ -326,6 +283,10 @@ class Script(scripts.Script):
  
         grids = []
         all_images = []
+        
+        make_gif(outpath, outfilename, int(fps), False, True)
+        make_mp4(outpath, outfilename, int(fps), False, True)
+        make_webm(outpath, outfilename, int(fps), False, True)
         
         loops = int(fps) * float(totaltime)
         state.job_count = int(loops) * batch_count
@@ -387,9 +348,10 @@ class Script(scripts.Script):
 
             #Manipulate image to be passed to next iteration
             init_img = processed.images[0]
-            #p.init_images = [zoom_at2(init_img, int(x_shift_cumulitive), int(y_shift_cumulitive), zoom_factor)]
-            p.init_images = [opencvtransform(init_img, 0, int(x_shift_cumulitive),  int(y_shift_cumulitive), zoom_factor, False)]
+            p.init_images = [zoom_at2(init_img, int(x_shift_cumulitive), int(y_shift_cumulitive), zoom_factor)]
+            #p.init_images = [opencvtransform(init_img, 0, int(x_shift_cumulitive),  int(y_shift_cumulitive), zoom_factor, False)]
             if add_noise:
+                #print("Adding Noise!!")
                 p.init_images[0] = addnoise(p.init_images[0], noise_strength)
             
             #Subtract the integer portion we just shifted.
@@ -406,9 +368,9 @@ class Script(scripts.Script):
             init_img.save(os.path.join(outpath, f"{outfilename}_{i:05}.png"))
  
         #If not interrupted, make requested movies. Otherise the bat files exist.
-        make_gif(outpath, outfilename, int(loops), int(fps), vid_gif & (not state.interrupted))
-        make_mp4(outpath, outfilename, int(loops), int(fps), vid_mp4 & (not state.interrupted))
-        make_webm(outpath, outfilename, int(loops), int(fps), vid_webm & (not state.interrupted))
+        make_gif(outpath, outfilename, int(fps), vid_gif & (not state.interrupted), False)
+        make_mp4(outpath, outfilename, int(fps), vid_mp4 & (not state.interrupted), False)
+        make_webm(outpath, outfilename, int(fps), vid_webm & (not state.interrupted), False)
  
  
         #display(all_images, initial_seed, initial_info)
