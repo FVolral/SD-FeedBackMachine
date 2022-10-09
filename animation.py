@@ -368,9 +368,9 @@ class Script(scripts.Script):
             init_img.save(os.path.join(outpath, f"{outfilename}_{i:05}.png"))
  
         #If not interrupted, make requested movies. Otherise the bat files exist.
-        make_gif(outpath, outfilename, int(fps), vid_gif & (not state.interrupted), False)
-        make_mp4(outpath, outfilename, int(fps), vid_mp4 & (not state.interrupted), False)
-        make_webm(outpath, outfilename, int(fps), vid_webm & (not state.interrupted), False)
+        make_gif(outpath, outfilename, int(fps), vid_gif, False)# & (not state.interrupted), False)
+        make_mp4(outpath, outfilename, int(fps), vid_mp4, False)# & (not state.interrupted), False)
+        make_webm(outpath, outfilename, int(fps), vid_webm, False)# & (not state.interrupted), False)
  
  
         #display(all_images, initial_seed, initial_info)
