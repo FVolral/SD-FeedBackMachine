@@ -1,5 +1,5 @@
 #
-# Animation Script v2.1
+# Animation Script v0.7
 # Inspired by Deforum Notebook
 # Must have ffmpeg installed in path.
 # Poor img2img implentation, will trash images that aren't moving.
@@ -84,7 +84,7 @@ def pasteprop(img, props):
 
 
 def rendertext(img, textblocks):
-
+    pad = 5 #Rounding and edge padding of the bubble background.
     d1 = ImageDraw.Draw(img)
 
     for textname in textblocks:
@@ -103,8 +103,11 @@ def rendertext(img, textblocks):
         font_size = int(textblocks[textname][11])
         myfont = ImageFont.truetype(font_name, font_size)
         txtsize = d1.multiline_textbbox((x, y), textprompt, font=myfont)
-        d1.rounded_rectangle(txtsize, radius=5, fill=(backR, backG, backB))
-        d1.multiline_text((x, y), textprompt, fill=(foreR, foreG, foreB), font=myfont)
+        d1.rounded_rectangle((txtsize[0] - pad,
+                              txtsize[1] - pad,
+                              txtsize[2] + 2 * pad,
+                              txtsize[3] + 2 * pad), radius=pad, fill=(backR, backG, backB))
+        d1.multiline_text((x+pad, y+pad), textprompt, fill=(foreR, foreG, foreB), font=myfont)
 
     return img
 
@@ -348,12 +351,13 @@ class Script(scripts.Script):
                                        (tmpl_neg + ", " + promptparts[3]).strip().strip(",").strip()))
 
         promptlist.sort(key=lambda y: y[0])  # Sort list by frame number, first value in tuple
-        if promptlist[0][0] > 0:
-            # No initial prompt provided, grab the template or top values.
-            if len((tmpl_pos + tmpl_neg).strip()):
-                promptlist.insert(0, (0, tmpl_pos, tmpl_neg))
-            else:
-                promptlist.insert(0, (0, p.prompt, p.negative_prompt))
+        if len(promptlist) > 0:
+            if promptlist[0][0] > 0:
+                # No initial prompt provided, grab the template or top values.
+                if len((tmpl_pos + tmpl_neg).strip()):
+                    promptlist.insert(0, (0, tmpl_pos, tmpl_neg))
+                else:
+                    promptlist.insert(0, (0, p.prompt, p.negative_prompt))
         prompt_index = 0
         print(f"Prompt List: {promptlist}\n")
 
@@ -503,8 +507,7 @@ class Script(scripts.Script):
 
                     elif keyframe_command == "set_stamp" and len(keyframe) == 7:
                         # Time (s) | set_stamp | stamp_name | stamp_filename | x pos | y pos | scale | rotation
-                        if not keyframe[1].strip() in stamps:
-                            stamps[keyframe[1].strip()] = keyframe[1:]
+                        stamps[keyframe[1].strip()] = keyframe[1:]
                     elif keyframe_command == "clear_stamp" and len(keyframe) == 2:
                         # Time (s) | clear_stamp | stamp_name
                         if keyframe[1].strip() in stamps:
@@ -512,8 +515,7 @@ class Script(scripts.Script):
 
                     elif keyframe_command == "set_text" and len(keyframe) == 13:
                         # Time (s) | set_text | textblock_name | text_prompt | x | y | fore_R | fore_G | fore_B | back_R | back_G | back_B | font_name | font_size
-                        if not keyframe[1].strip() in textblocks:
-                            textblocks[keyframe[1].strip()] = keyframe[1:]
+                        textblocks[keyframe[1].strip()] = keyframe[1:]
                     elif keyframe_command == "clear_text" and len(keyframe) == 2:
                         # Time (s) | clear_text | textblock_name
                         if keyframe[1].strip() in textblocks:
@@ -527,7 +529,7 @@ class Script(scripts.Script):
             elif noise_decay:
                 p.denoising_strength = p.denoising_strength * decay_mult
 
-            if prompt_index < len(promptlist):
+            if prompt_index < len(promptlist) and len(promptlist) > 1:
                 total_frames = promptlist[prompt_index][0] - promptlist[prompt_index-1][0]
                 current_frame = frame_no - promptlist[prompt_index-1][0]
                 print(f"Interpolation Index:{prompt_index} / {len(promptlist)} Frame:{current_frame} / {total_frames}\n")
@@ -580,10 +582,10 @@ class Script(scripts.Script):
 
             #Post processing (of saved images only)
             post_processed_image = init_img.copy()
-            if len(textblocks) > 0:
-                post_processed_image = rendertext(post_processed_image, textblocks)
             if len(stamps) > 0:
                 post_processed_image = pasteprop(post_processed_image, stamps)
+            if len(textblocks) > 0:
+                post_processed_image = rendertext(post_processed_image, textblocks)
 
             # Save every seconds worth of frames to the output set displayed in UI
             if (frame_no % int(fps) == 0):
