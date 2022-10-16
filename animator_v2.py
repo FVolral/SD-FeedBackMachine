@@ -1,5 +1,5 @@
 #
-# Animation Script v0.7
+# Animation Script v2.1
 # Inspired by Deforum Notebook
 # Must have ffmpeg installed in path.
 # Poor img2img implentation, will trash images that aren't moving.
@@ -20,7 +20,7 @@ import json
 import cv2
 # import torch
 
-from PIL import Image, ImageFilter, ImageDraw
+from PIL import Image, ImageFilter, ImageDraw, ImageFont
 
 
 def zoom_at2(img, rot, x, y, zoom):
@@ -40,22 +40,73 @@ def zoom_at2(img, rot, x, y, zoom):
     return resimg
 
 
-def pasteprop(img, propfilename, x, y, scale, rotation):
-    if not os.path.exists(propfilename):
-        print("Prop: Cannot locate file: " + propfilename)
-        return img
+def get_interpolate_prompt(prompt1, prompt2, frame, total_frame):
+    # prompt = (frame_no, positive_prompt, negative_prompt)
+    factor = 1.0 * frame / total_frame
+    pos_prompt1 = prompt1[1]
+    pos_prompt2 = prompt2[1]
+
+    if pos_prompt1 == pos_prompt2:
+        pos_prompt = pos_prompt1
+    else:
+        pos_prompt = f"{pos_prompt1} :{1 - factor} AND {pos_prompt2} :{factor}"
+    print(f"Interpolation prompt: {pos_prompt}\n")
+
+    return pos_prompt
+
+
+def pasteprop(img, props):
 
     img2 = img.convert('RGBA')
-
-    prop = Image.open(propfilename)
-    w2, h2 = prop.size
-    prop2 = prop.resize((int(w2 * scale), int(h2 * scale)), Image.Resampling.LANCZOS).rotate(rotation, expand=True)
-    w3, h3 = prop2.size
-
     tmplayer = Image.new('RGBA', img.size, (0, 0, 0, 0))
-    tmplayer.paste(prop2, (int(x - w3 / 2), int(y - h3 / 2)))
 
-    return Image.alpha_composite(img2, tmplayer).convert("RGB")
+    for propname in props:
+        #prop_name | prop filename | x pos | y pos | scale | rotation
+        propfilename = str(props[propname][1])
+        x = int(props[propname][2])
+        y = int(props[propname][3])
+        scale = float(props[propname][4])
+        rotation = float(props[propname][5])
+
+        if not os.path.exists(props[propname][1]):
+            print("Prop: Cannot locate file: " + propfilename)
+            return img
+
+        prop = Image.open(propfilename)
+        w2, h2 = prop.size
+        prop2 = prop.resize((int(w2 * scale), int(h2 * scale)), Image.Resampling.LANCZOS).rotate(rotation, expand=True)
+        w3, h3 = prop2.size
+
+        tmplayer.paste(prop2, (int(x - w3 / 2), int(y - h3 / 2)))
+
+    img2 = Image.alpha_composite(img2, tmplayer)
+    return img2.convert("RGB")
+
+
+def rendertext(img, textblocks):
+
+    d1 = ImageDraw.Draw(img)
+
+    for textname in textblocks:
+        #textblock_name | text_prompt | x | y | fore_R | fore_G | fore_B | back_R | back_G | back_B | font_name | font_size
+
+        textprompt = str(textblocks[textname][1]).strip().replace('\\n', '\n')
+        x = int(textblocks[textname][2])
+        y = int(textblocks[textname][3])
+        backR = int(textblocks[textname][4])
+        backG = int(textblocks[textname][5])
+        backB = int(textblocks[textname][6])
+        foreR = int(textblocks[textname][7])
+        foreG = int(textblocks[textname][8])
+        foreB = int(textblocks[textname][9])
+        font_name = str(textblocks[textname][10]).strip()
+        font_size = int(textblocks[textname][11])
+        myfont = ImageFont.truetype(font_name, font_size)
+        txtsize = d1.multiline_textbbox((x, y), textprompt, font=myfont)
+        d1.rounded_rectangle(txtsize, radius=5, fill=(backR, backG, backB))
+        d1.multiline_text((x, y), textprompt, fill=(foreR, foreG, foreB), font=myfont)
+
+    return img
 
 
 def addnoise(img, percent):
@@ -236,7 +287,7 @@ class Script(scripts.Script):
         i5 = gr.HTML("<p style=\"margin-bottom:0.75em\">Props</p>")
         propfolder = gr.Textbox(label="Folder:", lines=1, value="")
 
-        #"Time (S) | command word (verbatim as below) | parameters specified by command word below<br>"
+        # "Time (S) | command word (verbatim as below) | parameters specified by command word below<br>"
         i6 = gr.HTML(
             "<p style=\"margin-bottom:0.75em\">Supported Keyframes:<br>"
             "time_s | prompt | positive_prompts | negative_prompts<br>"
@@ -244,7 +295,15 @@ class Script(scripts.Script):
             "time_s | seed | new_seed_int<br>"
             "time_s | denoise | denoise_value<br>"
             "time_s | prop | prop_filename | x_pos | y_pos | scale | rotation<br>"
-            "time_s | model | " + ", ".join( sorted([x.model_name for x in sd_models.checkpoints_list.values()]) ) + "</p>")
+            "time_s | set_text | textblock_name | text_prompt | x | y | fore_R | fore_G | fore_B | back_R | back_G | back_B | font_name | font_size<br>"
+            "time_s | clear_text | textblock_name<br>"
+            "time_s | prop | prop_name | prop_filename | x pos | y pos | scale | rotation<br>"
+            "time_s | set_stamp | stamp_name | stamp_filename | x pos | y pos | scale | rotation<br>"
+            "time_s | clear_stamp | stamp_name<br>"
+            "time_s | col_set<br>"
+            "time_s | col_clear<br>"
+            "time_s | model | " + ", ".join(
+                sorted([x.model_name for x in sd_models.checkpoints_list.values()])) + "</p>")
 
         prompts = gr.Textbox(label="Keyframes:", lines=5, value="")
         return [i1, i2, i3, i4, i5, i6, totaltime, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg,
@@ -271,14 +330,32 @@ class Script(scripts.Script):
         p.do_not_save_samples = True
         p.do_not_save_grid = True
 
-        # Preprocess the keyframe text block into a dictionary, indexed by frame, containing a list of commands.
+        # Preprocess the keyframe text block into a dictionary, indexed by frame, containing a list of commands (of tuple).
+        # Also create prompt list, something easier to iterate through. list of tuples, first value = frame number.
         keyframes = {}
+        promptlist = []
         for prompt in prompts.splitlines():
             promptparts = prompt.split("|")
+            if len(promptparts) < 2:
+                continue
             tmpframe = int(float(promptparts[0]) * fps)
             if not tmpframe in keyframes:
                 keyframes[tmpframe] = []
             keyframes[tmpframe].append(promptparts[1:])
+            if len(promptparts) == 4:
+                if promptparts[1].lower().strip() == "prompt":
+                    promptlist.append((tmpframe, (tmpl_pos + ", " + promptparts[2]).strip().strip(",").strip(),
+                                       (tmpl_neg + ", " + promptparts[3]).strip().strip(",").strip()))
+
+        promptlist.sort(key=lambda y: y[0])  # Sort list by frame number, first value in tuple
+        if promptlist[0][0] > 0:
+            # No initial prompt provided, grab the template or top values.
+            if len((tmpl_pos + tmpl_neg).strip()):
+                promptlist.insert(0, (0, tmpl_pos, tmpl_neg))
+            else:
+                promptlist.insert(0, (0, p.prompt, p.negative_prompt))
+        prompt_index = 0
+        print(f"Prompt List: {promptlist}\n")
 
         processing.fix_seed(p)
         batch_count = p.n_iter
@@ -323,6 +400,11 @@ class Script(scripts.Script):
         #    a = np.random.rand(p.width, p.height, 3) * 255
         #    p.init_images.append(Image.fromarray(a.astype('uint8')).convert('RGB'))
 
+        #Post Processing object dicts
+        textblocks = {}
+        props = {}
+        stamps = {}
+
         p.batch_size = 1
         p.n_iter = 1
         p.denoising_strength = denoising_strength
@@ -349,16 +431,13 @@ class Script(scripts.Script):
 
         initial_color_corrections = [processing.setup_color_correction(p.init_images[0])]
 
-        #take note of current model, so we can set it at the end.
-        #model.sd_checkpoint_info
-        #curr_model_info = model.sd_checkpoint_info
-
-        x_xhift_cumulitive = 0
+        x_shift_cumulitive = 0
         y_shift_cumulitive = 0
         x_shift_perframe = x_shift / fps
         y_shift_perframe = y_shift / fps
         rot_perframe = rotation / fps
 
+        # Iterate through range of frames
         for frame_no in range(frame_count):
 
             if state.interrupted:
@@ -368,7 +447,7 @@ class Script(scripts.Script):
             apply_prop = False
             prop_details = ()
 
-            # Process Keyframes
+            # Check if keyframes exists for this frame
             if frame_no in keyframes:
                 # Keyframes exist for this frame.
                 print(f"\r\nKeyframe at {frame_no}: {keyframes[frame_no]}\r\n")
@@ -378,9 +457,9 @@ class Script(scripts.Script):
                     # Check the command, should be first item.
                     if keyframe_command == "prompt" and len(keyframe) == 3:
                         # Time (s) | prompt     | Positive Prompts | Negative Prompts
-                        p.prompt = tmpl_pos + ", " + keyframe[1].strip()
+                        # p.prompt = tmpl_pos + ", " + keyframe[1].strip()
                         p.negative_prompt = tmpl_neg + ", " + keyframe[2].strip()
-
+                        prompt_index += 1  # Step the prompt index, -1 = initial, 0 = first provided etc.
                     elif keyframe_command == "transform" and len(keyframe) == 5:
                         # Time (s) | transform  | Zoom (/s) | X Shift (pix/s) | Y shift (pix/s) | Rotation (deg/s)
                         zoom_factor = float(keyframe[1]) ** (1 / fps)
@@ -410,15 +489,35 @@ class Script(scripts.Script):
                     elif keyframe_command == "col_set" and len(keyframe) == 1:
                         # Time (s) | col_set
                         apply_colour_corrections = True
+                        if frame_no > 0:
+                            # Colour correction is set automatically above
+                            initial_color_corrections = [processing.setup_color_correction(p.init_images[0])]
                     elif keyframe_command == "col_clear" and len(keyframe) == 1:
                         # Time (s) | col_clear
                         apply_colour_corrections = False
-                    elif keyframe_command == "prop" and len(keyframe) == 6:
-                        # Time (s) | prop       | prop filename | x pos | y pos | scale | rotation
-                        apply_prop = True
-                        prop_details = (
-                        os.path.join(propfolder, keyframe[1].strip()), int(keyframe[2]), int(keyframe[3]),
-                        float(keyframe[4]), float(keyframe[5]))
+
+                    elif keyframe_command == "prop" and len(keyframe) == 7:
+                        # Time (s) | prop | prop_name | prop_filename | x pos | y pos | scale | rotation
+                        if not keyframe[1].strip() in props:
+                            props[keyframe[1].strip()] = keyframe[1:]
+
+                    elif keyframe_command == "set_stamp" and len(keyframe) == 7:
+                        # Time (s) | set_stamp | stamp_name | stamp_filename | x pos | y pos | scale | rotation
+                        if not keyframe[1].strip() in stamps:
+                            stamps[keyframe[1].strip()] = keyframe[1:]
+                    elif keyframe_command == "clear_stamp" and len(keyframe) == 2:
+                        # Time (s) | clear_stamp | stamp_name
+                        if keyframe[1].strip() in stamps:
+                            stamps.pop(keyframe[1].strip())
+
+                    elif keyframe_command == "set_text" and len(keyframe) == 13:
+                        # Time (s) | set_text | textblock_name | text_prompt | x | y | fore_R | fore_G | fore_B | back_R | back_G | back_B | font_name | font_size
+                        if not keyframe[1].strip() in textblocks:
+                            textblocks[keyframe[1].strip()] = keyframe[1:]
+                    elif keyframe_command == "clear_text" and len(keyframe) == 2:
+                        # Time (s) | clear_text | textblock_name
+                        if keyframe[1].strip() in textblocks:
+                            textblocks.pop(keyframe[1].strip())
                     """
                     elif keyframe_command == "stamp" and len(keyframe) == 6:
                         # Time (s) | stamp      | duration (s) | prop filename | scale | x pos | y pos
@@ -428,6 +527,14 @@ class Script(scripts.Script):
             elif noise_decay:
                 p.denoising_strength = p.denoising_strength * decay_mult
 
+            if prompt_index < len(promptlist):
+                total_frames = promptlist[prompt_index][0] - promptlist[prompt_index-1][0]
+                current_frame = frame_no - promptlist[prompt_index-1][0]
+                print(f"Interpolation Index:{prompt_index} / {len(promptlist)} Frame:{current_frame} / {total_frames}\n")
+                p.prompt = get_interpolate_prompt(promptlist[prompt_index-1], promptlist[prompt_index], current_frame,
+                                                  total_frames)
+
+            # Extra processing parameters
             p.n_iter = 1
             p.batch_size = 1
             p.do_not_save_grid = True
@@ -436,26 +543,29 @@ class Script(scripts.Script):
 
             state.job = f"Iteration {frame_no + 1}/{frame_count}"
 
+            # Process current frame
             processed = processing.process_images(p)
 
             if initial_seed is None:
                 initial_seed = processed.seed
                 initial_info = processed.info
 
-            # Accumulate the pixel shift per frame, incase its < 1
-            x_shift_cumulitive = x_xhift_cumulitive + x_shift_perframe
+            # Accumulate the pixel shift per frame, incase it's < 1
+            x_shift_cumulitive = x_shift_cumulitive + x_shift_perframe
             y_shift_cumulitive = y_shift_cumulitive + y_shift_perframe
 
             # Manipulate image to be passed to next iteration
             init_img = processed.images[0]
-            #Translate
+
+            # Translate
             init_img = zoom_at2(init_img, rot_perframe, int(x_shift_cumulitive), int(y_shift_cumulitive), zoom_factor)
-            #Props
-            if apply_prop:
-                init_img = pasteprop(init_img, prop_details[0], prop_details[1], prop_details[2], prop_details[3],
-                                     prop_details[4])
-                apply_prop = False
-            #Noise
+
+            # Props
+            if len(props) > 0:
+                init_img = pasteprop(init_img, props)
+                props = {}
+
+            # Noise
             if add_noise:
                 # print("Adding Noise!!")
                 init_img = addnoise(init_img, noise_strength)
@@ -463,17 +573,24 @@ class Script(scripts.Script):
             p.init_images = [init_img]
 
             # Subtract the integer portion we just shifted.
-            x_shift_cumulitive = x_xhift_cumulitive - int(x_xhift_cumulitive)
+            x_shift_cumulitive = x_shift_cumulitive - int(x_shift_cumulitive)
             y_shift_cumulitive = y_shift_cumulitive - int(y_shift_cumulitive)
 
             p.seed = processed.seed + 1
 
+            #Post processing (of saved images only)
+            post_processed_image = init_img.copy()
+            if len(textblocks) > 0:
+                post_processed_image = rendertext(post_processed_image, textblocks)
+            if len(stamps) > 0:
+                post_processed_image = pasteprop(post_processed_image, stamps)
+
             # Save every seconds worth of frames to the output set displayed in UI
             if (frame_no % int(fps) == 0):
-                all_images.append(init_img)
+                all_images.append(post_processed_image)
 
             # Save current image to folder manually, with specific name we can iterate over.
-            init_img.save(os.path.join(outpath, f"{outfilename}_{frame_no:05}.png"))
+            post_processed_image.save(os.path.join(outpath, f"{outfilename}_{frame_no:05}.png"))
 
         # If not interrupted, make requested movies. Otherise the bat files exist.
         make_gif(outpath, outfilename, fps, vid_gif & (not state.interrupted), False)
