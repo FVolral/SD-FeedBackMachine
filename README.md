@@ -32,24 +32,90 @@ This suffers from img2img embossing, if the image is static for too long. I woul
  Provide common positive and negative prompts for each keyframe below, save typing them out over and over. They will only be applied when a keyframe is hit. The prompts in the keyframes will be appended to these and sent for processing until the next keyframe that has a prompt.
 
 ## Keyframes:
-Format: Time (s) | Desnoise | Zoom (/s) | X Shift (pix/s) | Y shift (pix/s) | Positive Prompts | Negative Prompts | Seed
-A list of parameter changes to be applied at the specified time. 
-
-# Example
-Start with a nice image rendered from txt2img, with a variety of colours. This will be used to set the colour palette for the animation.
-
-    Total Time: 25
-    FPS: 30
-    Initial Denoising Strength: 0.4
-    Initial Zoom factor: 2.0
-    Initial X Shift: 0
-    Initial Y Shift: 0
-    Prompt Template, Positive:
-     centred, high detail
-    Prompt Template, Negative:
-    KeyFrames:
-     0 | 0.4 | 2.5 | 0 | 0 | nice apple, sitting in fruit bowl, open window, blue sky | |
-     5 | 0.4 | 1 | 00 | 250 | nice bunch of grapes, grapevine | |
-     10 | 0.4 | 1 | 0 | -250 | tabby cat, barn  |  |
-     15 | 0.4 | 1 | 250 | 0 | golden retriever, green field |  |
-     20 | 0.4 | 1 | -250 | 0 | octopus, ocean |  |
+Key frames have been broken down into individual commands, since the old keyframe was blowing out.
+Commands:
+- prompt
+		Set positive and negative prompts.
+		Format: time_s | prompt | positive_prompts | negative_prompts
+		- time_s: Time in seconds from the start to make the change.
+		- prompt: Command name.
+		- positive_prompts: Replacement positive prompts. Will be concatenated with the positive template.
+		- negative_prompts: Replacement negative prompts. Will be concatenated with the negative template.
+- transform
+		Set the current transform.
+		Format: time_s | transform | zoom | x_shift | y_shift | rotation
+		- time_s: Time in seconds from the start to make the change.
+		- transform: Command name.
+		- zoom: New zoom value. 1 = 100% per second. 2 = zoom in 200% over 1 second.
+		- x_shift: X shift value, in pixels per second.
+		- y_shift: Y shift value, in pixels per second.
+		- rotation: Rotation, in degrees per second.
+- seed
+		Force a specific seed. It's technically a thing you can do, how usefull it is, is up to you to decide.
+		Format: time_s | seed | new_seed_int
+		- time_s: Time in seconds from the start to make the change.
+		- denoise: Command name.
+		- denoise_value: New denoise strength value.
+- denoise
+		Set the denoise strength.
+		Format: time_s | denoise | denoise_value
+		- time_s: Time in seconds from the start to make the change.
+		- denoise: Command name.
+		- denoise_value: New denoise strength value.
+- set_text
+		Overlay a rounded text box in post processing. I.e. only applied to the image that is saved, and it not iterated on.
+		Text boxes are referenced by the name you give. If you set it again, you can change the contents. Or it can be cleared. Multiple text boxes with different names can exist at the same time.
+		Format: time_s | set_text | textblock_name | text_prompt | x | y | fore_R | fore_G | fore_B | back_R | back_G | back_B | font_name | font_size
+		- time_s: Time in seconds from the start to make the change.
+		- set_text: Command name.
+		- textblock_name: Unique name or tag given to this text block in the set_text command above.
+		- text_prompt: Text to put in the text block. You will can use \n for multi-line.
+		- x: Top left X position of the text block.
+		- y: Top left Y position of the text block.
+		- fore_R: RGB values, in base10, for the text.
+		- fore_G: 
+		- fore_B: 
+		- back_R: RGB values, in base10, of the background bubble.
+		- back_G: 
+		- back_B: 
+		- font_name: name of the font file. Python will attempt to scan your system font folders for this file.
+		- font_size: Font size, in pixels i think.
+- clear_text
+		Remove a named text box, it will no longer be drawn on the saved images.
+		Format: time_s | clear_text | textblock_name
+		- time_s: Time in seconds from the start to make the change.
+		- clear_text: Command name.
+		- textblock_name: Unique name or tag given to this text block in the set_text command above.
+- prop
+		Embed a clipart image into the picture to be diffused. it will be drawn once at this time. You need to set a prop folder where transparent pngs are held, and specify them by file name.
+		Format: time_s | prop | prop_filename | x_pos | y_pos | scale | rotation
+		- time_s: Time in seconds from the start to make the change.
+		- prop: Command name.
+		- prop_filename: Name of a picture in the props folder, hopefully with transparency.
+		- x_pos: Center position of the prop.
+		- y_pos: Center position of the prop.
+		- scale: Scale value. 1=100% etc.
+		- rotation: Rotation, in degrees.
+- set_stamp
+		Like props but applied in post processing and will not be diffused. You ca reference them by name, change their details on the fly as with text boxes.
+		Format: time_s | set_stamp | stamp_name | stamp_filename | x_pos | y_pos | scale | rotation
+		- time_s: Time in seconds from the start to make the change.
+		- set_stamp: Command name.
+		- stamp_name: Unique name or tag given to this stamp. Used to change it's parameters or delete.
+		- stamp_filename: Name of a picture in the props folder, hopefully with transparency.
+		- x_pos: Center position of the stamp.
+		- y_pos: Center position of the stamp.
+		- scale: Scale value. 1=100% etc.
+		- rotation: Rotation, in degrees.
+- clear_stamp
+		Clear out a stamp, will no longer be drawn on the saved images.
+		Format: time_s | clear_stamp | stamp_name
+		- time_s: Time in seconds from the start to make the change.
+		- clear_stamp: Command name.
+		- stamp_name: Unique name or tag given to this stamp in the set_stamp command above.
+- model
+		Allows you to change the model on the fly, if you need to. It won't change it back at the end, so if you do use this, maybe set the initial model in frame 0 first.
+		Format: time_s | model | model_name
+		- time_s: Time in seconds from the start to make the change.
+		- model: Command name.
+		- model_name: Pick one from the list. Just the name with no extension or hash is fine.
