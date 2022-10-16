@@ -1,5 +1,5 @@
 #
-# Animation Script v0.7
+# Animation Script v2.0
 # Inspired by Deforum Notebook
 # Must have ffmpeg installed in path.
 # Poor img2img implentation, will trash images that aren't moving.
@@ -55,20 +55,19 @@ def get_interpolate_prompt(prompt1, prompt2, frame, total_frame):
     return pos_prompt
 
 
-def pasteprop(img, props):
+def pasteprop(img, props, propfolder):
 
     img2 = img.convert('RGBA')
-    tmplayer = Image.new('RGBA', img.size, (0, 0, 0, 0))
 
     for propname in props:
         #prop_name | prop filename | x pos | y pos | scale | rotation
-        propfilename = str(props[propname][1])
+        propfilename = os.path.join(propfolder.strip(), str(props[propname][1]).strip())
         x = int(props[propname][2])
         y = int(props[propname][3])
         scale = float(props[propname][4])
         rotation = float(props[propname][5])
 
-        if not os.path.exists(props[propname][1]):
+        if not os.path.exists(propfilename):
             print("Prop: Cannot locate file: " + propfilename)
             return img
 
@@ -77,9 +76,10 @@ def pasteprop(img, props):
         prop2 = prop.resize((int(w2 * scale), int(h2 * scale)), Image.Resampling.LANCZOS).rotate(rotation, expand=True)
         w3, h3 = prop2.size
 
+        tmplayer = Image.new('RGBA', img.size, (0, 0, 0, 0))
         tmplayer.paste(prop2, (int(x - w3 / 2), int(y - h3 / 2)))
+        img2 = Image.alpha_composite(img2, tmplayer)
 
-    img2 = Image.alpha_composite(img2, tmplayer)
     return img2.convert("RGB")
 
 
@@ -500,11 +500,11 @@ class Script(scripts.Script):
                         # Time (s) | col_clear
                         apply_colour_corrections = False
 
-                    elif keyframe_command == "prop" and len(keyframe) == 7:
-                        # Time (s) | prop | prop_name | prop_filename | x pos | y pos | scale | rotation
-                        if not keyframe[1].strip() in props:
-                            props[keyframe[1].strip()] = keyframe[1:]
-
+                    elif keyframe_command == "prop" and len(keyframe) == 6:
+                        # Time (s) | prop | prop_filename | x pos | y pos | scale | rotation
+                        # bit of a hack, no prop name is supplied, but same function is used to draw.
+                        # so the command is passed in place of prop name, which will be ignored anyway.
+                        props[len(props)] = keyframe
                     elif keyframe_command == "set_stamp" and len(keyframe) == 7:
                         # Time (s) | set_stamp | stamp_name | stamp_filename | x pos | y pos | scale | rotation
                         stamps[keyframe[1].strip()] = keyframe[1:]
@@ -564,7 +564,7 @@ class Script(scripts.Script):
 
             # Props
             if len(props) > 0:
-                init_img = pasteprop(init_img, props)
+                init_img = pasteprop(init_img, props, propfolder)
                 props = {}
 
             # Noise
@@ -583,7 +583,7 @@ class Script(scripts.Script):
             #Post processing (of saved images only)
             post_processed_image = init_img.copy()
             if len(stamps) > 0:
-                post_processed_image = pasteprop(post_processed_image, stamps)
+                post_processed_image = pasteprop(post_processed_image, stamps, propfolder)
             if len(textblocks) > 0:
                 post_processed_image = rendertext(post_processed_image, textblocks)
 
