@@ -6,6 +6,13 @@ Inspired by Deforum Notebook
 Must have ffmpeg installed in path.
 This suffers from img2img embossing, if the image is static for too long. I would have to look at someone else's implemetation to figure out why and don't want to steal their code.
 
+## Versions
+### Original
+#### Original version of the script with one basic prompt format.
+### V2
+#### Broken down the growing prompt into individual commands to control various parameters. Added requested features. Rolled in changed from pull requests, thanks to contributers.
+### V3
+#### Changed the interpolation system, so various keyframes write values into a frame dataframe. Blank values are then interpolated, so transform changes are smoother. also used to interpolated prompts by default now.
 ## Explanation of settings:
 ### Video formats:
  Create GIF, webM or MP4 file from the series of images. Regardless, .bat files will be created with the right options to make the videos at a later time.
