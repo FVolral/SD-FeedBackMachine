@@ -363,6 +363,9 @@ class Script(scripts.Script):
         # Sort list of prompts, and then populate the dataframe in a alternating fashion.
         # need to do this to ensure the prompts flow onto each other correctly.
         myprompts = sorted(myprompts)
+        #Special case if no prompts supplied.
+        if len(myprompts) == 0:
+            df.loc[0, ['pos1', 'neg1', 'pos2', 'neg2', 'prompt']] = ["", "", "", "", 1.0]
         for x in range(len(myprompts)):
             if x == len(myprompts) - 1:
                 pos1 = myprompts[x][1]
@@ -389,8 +392,17 @@ class Script(scripts.Script):
         df.loc[:, ['pos1', 'neg1']] = df.loc[:, ['pos1', 'neg1']].ffill()
         df.loc[:, ['pos2', 'neg2']] = df.loc[:, ['pos2', 'neg2']].ffill()
 
-        #df['pos_prompt'] = 'temp_pos, ' + df['pos1'] + ":" + df['prompt'].map(str) +
-        #                   ' AND temp_pos, ' + df['pos2'] + ":" + (1.0-df['prompt']).map(str)
+        #print(df)
+        # Check if templates are filled in. If not, try grab prompts at top (i.e. image sent from png info)
+        if len(tmpl_pos.strip()) == 0:
+            tmpl_pos = p.prompt
+        if len(tmpl_neg.strip()) == 0:
+            tmpl_neg = p.negative_prompt
+
+        df['pos_prompt'] = tmpl_pos + ", " + df['pos1'] + ":" + df['prompt'].map(str) + ' AND ' + tmpl_pos + ', ' + \
+                           df['pos2'] + ":" + (1.0-df['prompt']).map(str)
+        df['neg_prompt'] = tmpl_neg + ", " + df['neg1'] + ":" + df['prompt'].map(str) + ' AND ' + tmpl_neg + ', ' + \
+                           df['neg2'] + ":" + (1.0-df['prompt']).map(str)
 
         csv_filename = os.path.join(outpath, f"{str(outfilename)}_frames.csv")
         df.to_csv(csv_filename)
@@ -553,14 +565,9 @@ class Script(scripts.Script):
             zoom_factor = df.loc[frame_no, ['zoom']][0]
             p.denoising_strength = df.loc[frame_no, ['denoise']][0]
 
-            pos1 = f"{tmpl_pos}, {df.loc[frame_no, ['pos1']][0]}: {df.loc[frame_no, ['prompt']][0]}".strip().strip(",").strip()
-            pos2 = f"{tmpl_pos}, {df.loc[frame_no, ['pos2']][0]}: {1.0 - df.loc[frame_no, ['prompt']][0]}".strip().strip(",").strip()
-            p.prompt = f"{pos1} AND {pos2}"
+            p.prompt = df.loc[frame_no, ['pos_prompt']][0]
             #print(p.prompt)
-
-            neg1 = f"{tmpl_neg}, {df.loc[frame_no, ['neg1']][0]}: {df.loc[frame_no, ['prompt']][0]}".strip().strip(",").strip()
-            neg2 = f"{tmpl_neg}, {df.loc[frame_no, ['neg2']][0]}: {1.0 - df.loc[frame_no, ['prompt']][0]}".strip().strip(",").strip()
-            p.negative_prompt = f"{neg1} AND {neg2}"
+            p.negative_prompt = df.loc[frame_no, ['neg_prompt']][0]
             #print(p.negative_prompt)
 
             # Extra processing parameters
