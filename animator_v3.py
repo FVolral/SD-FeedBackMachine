@@ -74,7 +74,7 @@ def rendertext(img, textblocks):
     d1 = ImageDraw.Draw(img)
     font_size = 20
     for textname in textblocks:
-        # textblock_name | text_prompt | x | y | fore_R | fore_G | fore_B | back_R | back_G | back_B | font_name | font_size
+        # textblock_name | text_prompt | x | y | w | h | back_color | white_color | font_filename
         textprompt = str(textblocks[textname][1]).strip().replace('\\n', '\n')
         x = int(textblocks[textname][2])
         y = int(textblocks[textname][3])
@@ -351,7 +351,7 @@ class Script(scripts.Script):
                                                                                 float(promptparts[4]) / fps,
                                                                                 float(promptparts[2]) ** (1.0 / fps),
                                                                                 float(promptparts[5]) / fps]
-            elif tmpcommand == "denoise" and len(promptparts) == 5:
+            elif tmpcommand == "denoise" and len(promptparts) == 3:
                 # Time (s) | denoise | denoise
                 df.loc[tmpframe, ['denoise']] = [float(promptparts[2])]
 
