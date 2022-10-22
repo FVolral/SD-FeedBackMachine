@@ -347,6 +347,7 @@ class Script(scripts.Script):
         # Sort list of prompts, and then populate the dataframe in a alternating fashion.
         # need to do this to ensure the prompts flow onto each other correctly.
         myprompts = sorted(myprompts)
+
         #Special case if no prompts supplied.
         if len(myprompts) == 0:
             df.loc[0, ['pos1', 'neg1', 'pos2', 'neg2', 'prompt']] = ["", "", "", "", 1.0]
@@ -388,7 +389,15 @@ class Script(scripts.Script):
             df['seed_str'] = 0
 
         print(df)
-        df = df.interpolate(limit_direction='both')
+        #Interpolate columns individually depending on how many data points.
+        for name, values in df.iteritems():
+            if values.count() > 3:
+                df.loc[:, name] = df.loc[:, name].interpolate(limit_direction='both', method="polynomial", order=2)
+                df.loc[:, name] = df.loc[:, name].interpolate(limit_direction='both')  # catch last null values.
+            else:
+                df.loc[:, name] = df.loc[:, name].interpolate(limit_direction='both')
+
+        #df = df.interpolate(limit_direction='both')
         df.loc[:, ['pos1', 'neg1', 'pos2', 'neg2']] = df.loc[:, ['pos1', 'neg1', 'pos2', 'neg2']].ffill()
         print(df)
 
@@ -550,6 +559,11 @@ class Script(scripts.Script):
             p.negative_prompt = str(df.loc[frame_no, ['neg_prompt']][0])
             #print(p.negative_prompt)
 
+            p.seed = int(df.loc[frame_no, ['seed_start']][0])
+            p.subseed = None if df.loc[frame_no, ['seed_end']][0] is None else int(df.loc[frame_no, ['seed_end']][0])
+            p.subseed_strength = None if df.loc[frame_no, ['seed_str']][0] is None else float(df.loc[frame_no, ['seed_str']][0])
+            #print(f"Frame:{frame_no} Seed:{p.seed} Sub:{p.subseed} Str:{p.subseed_strength}")
+
             # Extra processing parameters
             p.n_iter = 1
             p.batch_size = 1
@@ -575,6 +589,8 @@ class Script(scripts.Script):
                     init_img = processed.images[0]
 
             # Translate
+            x_shift_cumulative = x_shift_cumulative + x_shift_perframe
+            y_shift_cumulative = y_shift_cumulative + y_shift_perframe
             init_img = zoom_at2(init_img, rot_perframe, int(x_shift_cumulative), int(y_shift_cumulative), zoom_factor)
 
             # Props
@@ -582,34 +598,15 @@ class Script(scripts.Script):
                 init_img = pasteprop(init_img, props, propfolder)
                 props = {}
 
-            p.init_images = [init_img]
-
             # Process current frame
+            p.init_images = [init_img]
             processed = processing.process_images(p)
-
-            if initial_seed is None:
-                initial_seed = processed.seed
-                initial_info = processed.info
-
-            # Accumulate the pixel shift per frame, incase it's < 1
-            x_shift_cumulative = x_shift_cumulative + x_shift_perframe
-            y_shift_cumulative = y_shift_cumulative + y_shift_perframe
-
-
-
-            # Manipulate image to be passed to next iteration
-            init_img = processed.images[0]
 
             # Subtract the integer portion we just shifted.
             x_shift_cumulative = x_shift_cumulative - int(x_shift_cumulative)
             y_shift_cumulative = y_shift_cumulative - int(y_shift_cumulative)
 
-            p.seed = int(df.loc[frame_no, ['seed_start']][0])
-            p.subseed = None if df.loc[frame_no, ['seed_end']][0] is None else int(df.loc[frame_no, ['seed_end']][0])
-            p.subseed_strength = None if df.loc[frame_no, ['seed_str']][0] is None else float(df.loc[frame_no, ['seed_str']][0])
-            print(f"Frame:{frame_no} Seed:{p.seed} Sub:{p.subseed} Str:{p.subseed_strength}")
-
-            # Post processing (of saved images only)
+            # Post-processing (of saved images only)
             post_processed_image = processed.images[0]
             if len(stamps) > 0:
                 post_processed_image = pasteprop(post_processed_image, stamps, propfolder)
@@ -622,6 +619,11 @@ class Script(scripts.Script):
 
             # Save current image to folder manually, with specific name we can iterate over.
             post_processed_image.save(os.path.join(outpath, f"{outfilename}_{frame_no:05}.png"))
+
+            if initial_seed is None:
+                initial_seed = processed.seed
+                initial_info = processed.info
+
 
         # If not interrupted, make requested movies. Otherwise the bat files exist.
         make_gif(outpath, outfilename, fps, vid_gif & (not state.interrupted), False)
