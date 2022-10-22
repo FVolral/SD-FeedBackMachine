@@ -1,5 +1,5 @@
 #
-# Animation Script v3.0
+# Animation Script v4.0
 # Inspired by Deforum Notebook
 # Must have ffmpeg installed in path.
 # Poor img2img implentation, will trash images that aren't moving.
