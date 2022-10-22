@@ -13,6 +13,10 @@ This suffers from img2img embossing, if the image is static for too long. I woul
 #### Broken down the growing prompt into individual commands to control various parameters. Added requested features. Rolled in changed from pull requests, thanks to contributers.
 ### V3
 #### Changed the interpolation system, so various keyframes write values into a frame dataframe. Blank values are then interpolated, so transform changes are smoother. also used to interpolated prompts by default now.
+### V4
+#### Investigating seed marching. Look at some scripts and figured out how subseeds are meant to be used. Implemented it as an option. If you add seed keyframes and check the seed march box, the script will migrate from one seed to the next using the subseed & subseed strength interpolation. if you leave seed march unckecked, the seed value will interpolate from one integer to the next. View the final values in the dataframe .csv dump in the output folder.
+Seed marching doesn't seem to work well with transforms, if you combine them you'll get poor results.
+
 ## Explanation of settings:
 ### Video formats:
  Create GIF, webM or MP4 file from the series of images. Regardless, .bat files will be created with the right options to make the videos at a later time.
