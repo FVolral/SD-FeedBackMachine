@@ -209,9 +209,6 @@ class Script(scripts.Script):
     def title(self):
         return "Animator v4"
 
-    def description(self):
-        return "Keyframe based animator, create videos"
-
     def show(self, is_img2img):
         return is_img2img
 
