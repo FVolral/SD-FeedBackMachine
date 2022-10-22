@@ -565,9 +565,9 @@ class Script(scripts.Script):
             zoom_factor = df.loc[frame_no, ['zoom']][0]
             p.denoising_strength = df.loc[frame_no, ['denoise']][0]
 
-            p.prompt = df.loc[frame_no, ['pos_prompt']][0]
+            p.prompt = str(df.loc[frame_no, ['pos_prompt']][0])
             #print(p.prompt)
-            p.negative_prompt = df.loc[frame_no, ['neg_prompt']][0]
+            p.negative_prompt = str(df.loc[frame_no, ['neg_prompt']][0])
             #print(p.negative_prompt)
 
             # Extra processing parameters
