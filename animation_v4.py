@@ -391,7 +391,9 @@ class Script(scripts.Script):
         print(df)
         #Interpolate columns individually depending on how many data points.
         for name, values in df.iteritems():
-            if values.count() > 3:
+            if name in ['prompt', 'seed_str']:
+                df.loc[:, name] = df.loc[:, name].interpolate(limit_direction='both')
+            elif values.count() > 3:
                 df.loc[:, name] = df.loc[:, name].interpolate(limit_direction='both', method="polynomial", order=2)
                 df.loc[:, name] = df.loc[:, name].interpolate(limit_direction='both')  # catch last null values.
             else:
