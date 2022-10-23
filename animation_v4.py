@@ -609,7 +609,7 @@ class Script(scripts.Script):
             y_shift_cumulative = y_shift_cumulative - int(y_shift_cumulative)
 
             # Post-processing (of saved images only)
-            post_processed_image = processed.images[0]
+            post_processed_image = processed.images[0].copy()
             if len(stamps) > 0:
                 post_processed_image = pasteprop(post_processed_image, stamps, propfolder)
             if len(text_blocks) > 0:
@@ -621,6 +621,9 @@ class Script(scripts.Script):
 
             # Save current image to folder manually, with specific name we can iterate over.
             post_processed_image.save(os.path.join(outpath, f"{outfilename}_{frame_no:05}.png"))
+
+            post_processed_image = None  # Release this copy
+            init_img = None
 
             if initial_seed is None:
                 initial_seed = processed.seed
