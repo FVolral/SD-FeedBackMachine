@@ -92,7 +92,7 @@ def rendertext(img, textblocks):
         # Auto size the text.
         for fs in range(70):
             myfont = ImageFont.truetype(font_name, fs)
-            txtsize = d1.multiline_textbbox((0, 0), textprompt, font=myfont)
+            txtsize = d1.multiline_textbbox((0, 0), textprompt, font=myfont, align='center')
             if txtsize[2] - txtsize[0] > (w - pad * 2) or txtsize[3] - txtsize[1] > (h - pad * 2):
                 font_size = fs - 1
                 break
@@ -100,11 +100,11 @@ def rendertext(img, textblocks):
         myfont = ImageFont.truetype(font_name, font_size)
         # print(f"size:{font_size} loc:{x}, {y} size:{w}, {h}")
 
-        # txtsize = d1.multiline_textbbox((0, 0), textprompt, font=myfont)
+        txtsize = d1.multiline_textbbox((0, 0), textprompt, font=myfont, align='center')
         # print(f"txtsize:{txtsize}")
 
         d1.rounded_rectangle((x, y, x + w, y + h), radius=pad, fill=backcolor)
-        d1.multiline_text((x + pad, y + pad), textprompt, fill=forecolor, font=myfont, align='center')
+        d1.multiline_text((x + pad, y + pad + (h - txtsize[3])/2), textprompt, fill=forecolor, font=myfont, align='center')
 
     return img
 
