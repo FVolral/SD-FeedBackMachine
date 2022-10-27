@@ -600,7 +600,7 @@ class Script(scripts.Script):
             if apply_colour_corrections:
                 p.color_corrections = initial_color_corrections
 
-            state.job = f"Iteration {frame_no + 1}/{frame_count}"
+            state.job = f"Major frame {frame_no} of {frame_count}"
 
             # Pre-process Image
             if seed_march:
