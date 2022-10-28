@@ -1,5 +1,5 @@
 #
-# Animation Script v4.0
+# Animation Script v5.0
 # Inspired by Deforum Notebook
 # Must have ffmpeg installed in path.
 # Poor img2img implentation, will trash images that aren't moving.
@@ -274,7 +274,7 @@ class Script(scripts.Script):
             "time_s | template | positive_prompts | negative_prompts<br>"
             "time_s | transform | zoom | x_shift | y_shift | rotation<br>"
             "time_s | seed | new_seed_int<br>"
-            "time_s | denoise | added_noise_strength<br>"            
+            "time_s | noise | added_noise_strength<br>"            
             "time_s | denoise | denoise_value<br>"
             "time_s | set_text | textblock_name | text_prompt | x | y | w | h | fore_color | back_color | font_name<br>"
             "time_s | clear_text | textblock_name<br>"
