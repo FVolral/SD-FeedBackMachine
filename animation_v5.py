@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 import json
 import cv2
+import glob
 
 from PIL import Image, ImageFilter, ImageDraw, ImageFont
 
@@ -266,7 +267,7 @@ class Script(scripts.Script):
         # "Time (S) | command word (verbatim as below) | parameters specified by command word below<br>"
         i6 = gr.HTML(
             "<p style=\"margin-bottom:0.75em\">Supported Keyframes:<br>"
-            "time_s | source | video | path<br>"
+            "time_s | source | video, images, img2img | path<br>"
             "time_s | prompt | positive_prompts | negative_prompts<br>"
             "time_s | template | positive_prompts | negative_prompts<br>"
             "time_s | transform | zoom | x_shift | y_shift | rotation<br>"
@@ -388,6 +389,13 @@ class Script(scripts.Script):
                             print(f"Failed to load video: {ex}")
                     else:
                         print(f"Could not locate video: {tmp_source_path}")
+                elif tmp_source_name == 'images':
+                    source_cap = glob.glob(tmp_source_path)
+                    if len(source_cap) > 0:
+                        source = tmp_source_name
+                        print(f'Found {len(source_cap)} images in {tmp_source_path}')
+                    else:
+                        print(f'No images found, reverting back to img2img: {tmp_source_path}')
 
         # Sort list of prompts, and then populate the dataframe in a alternating fashion.
         # need to do this to ensure the prompts flow onto each other correctly.
@@ -657,10 +665,22 @@ class Script(scripts.Script):
                 source_cap.set(1, frame_no)
                 ret, tmp_array = source_cap.read()
                 init_img = Image.fromarray(tmp_array.astype('uint8'), 'RGB')
+            elif tmp_source_name == 'images':
+                if frame_no >= len(source_cap):
+                    init_img = Image.open(source_cap[-1])
+                    print('Out of frames, reverting to last frame!')
+                else:
+                    init_img = Image.open(source_cap[frame_no])
+                if init_img.mode != 'RGB':
+                    init_img = init_img.convert('RGB')
+
             #
             # Pre-process source frame
             #
-            #init_img.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}_initial.png"))
+
+            # Debug, print out source frame
+            # init_img.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}_initial.png"))
+
             #
             # Process source frame into destination frame
             #
