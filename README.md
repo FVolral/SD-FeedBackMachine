@@ -2,6 +2,8 @@
 A basic img2img script that will dump frames and build a video file. Suitable for creating interesting zoom in warping movies, but not too much else at this time.
 The basic idea is to story board some kinf od animation with changes in prompts, translation etc at a low framerate until you get it roughly right. Then bump up the framerate for a final render, it should play out roughly the same, just more detail.
 
+This is intended to be a versatile toolset to help you automate some img2img tasks. It certainly isn't a one stop shop for digital movies.
+
 Inspired by Deforum Notebook
 Must have ffmpeg installed in path.
 This suffers from img2img embossing, if the image is static for too long. I would have to look at someone else's implemetation to figure out why and don't want to steal their code.
@@ -15,7 +17,11 @@ This suffers from img2img embossing, if the image is static for too long. I woul
 #### Changed the interpolation system, so various keyframes write values into a frame dataframe. Blank values are then interpolated, so transform changes are smoother. also used to interpolated prompts by default now.
 ### V4
 #### Investigating seed marching. Look at some scripts and figured out how subseeds are meant to be used. Implemented it as an option. If you add seed keyframes and check the seed march box, the script will migrate from one seed to the next using the subseed & subseed strength interpolation. if you leave seed march unckecked, the seed value will interpolate from one integer to the next. View the final values in the dataframe .csv dump in the output folder.
-Seed marching doesn't seem to work well with transforms, if you combine them you'll get poor results.
+#### Seed marching doesn't seem to work well with transforms, if you combine them you'll get poor results.
+### V5
+#### Added some different sources for frames. If video is specified, frames will be grabbed from the supplied video file, until the end of the video is hit. Then the last frame will be repeated (i think). Images works silimarly, but you need to specify a path and wilcard file name, such as c:/images/*.png. A list of images will be created, alphabetically sorted by default. If there are not enough images for the specified duration, the last frame will be repeated.
+#### Specifying a different source other than img2img means the initial image in the UI will be ignored, but it needs to be there for the UI to work.
+#### Further, transformation won't have an effect, as there is no longer a feedback loop.
 
 ## Explanation of settings:
 ### Video formats:
@@ -45,11 +51,27 @@ Seed marching doesn't seem to work well with transforms, if you combine them you
 ## Keyframes:
 Key frames have been broken down into individual commands, since the old keyframe was blowing out.
 Commands:
+
+"time_s | source | video, images, img2img | path<br>"
+
+### source
+Set source of frames for processing.
+Format: time_s | prompt | positive_prompts | negative_prompts
+- time_s: Time in seconds from the start to make the change.
+- prompt: video, images, img2img
+- path: Either the file name of the video file, or the path and wildcard filename of the images.
 ### prompt
 Set positive and negative prompts.
 Format: time_s | prompt | positive_prompts | negative_prompts
 - time_s: Time in seconds from the start to make the change.
 - prompt: Command name.
+- positive_prompts: Replacement positive prompts. Will be concatenated with the positive template.
+- negative_prompts: Replacement negative prompts. Will be concatenated with the negative template.
+### template
+Set positive and negative prompt template. Purely saves filling out the boxes above in the web UI.
+Format: time_s | prompt | positive_prompts | negative_prompts
+- time_s: Time in seconds from the start to make the change.
+- template: Command name.
 - positive_prompts: Replacement positive prompts. Will be concatenated with the positive template.
 - negative_prompts: Replacement negative prompts. Will be concatenated with the negative template.
 ### transform
