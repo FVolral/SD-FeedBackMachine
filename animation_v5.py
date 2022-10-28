@@ -241,7 +241,9 @@ class Script(scripts.Script):
         with gr.Row():
             total_time = gr.Textbox(label="Total Animation Length (s)", lines=1, value="10.0")
             fps = gr.Textbox(label="Framerate", lines=1, value="15")
-
+        with gr.Row():
+            add_noise = gr.Checkbox(label="Add_Noise", value=False)
+            noise_strength = gr.Slider(label="Noise Strength", minimum=0.0, maximum=1.0, step=0.01, value=0.10)
         i3 = gr.HTML("<p style=\"margin-bottom:0.75em\">Initial Parameters</p>")
         with gr.Row():
             denoising_strength = gr.Slider(label="Denoising Strength (overrides img2img slider)", minimum=0.0,
@@ -272,6 +274,7 @@ class Script(scripts.Script):
             "time_s | template | positive_prompts | negative_prompts<br>"
             "time_s | transform | zoom | x_shift | y_shift | rotation<br>"
             "time_s | seed | new_seed_int<br>"
+            "time_s | denoise | added_noise_strength<br>"            
             "time_s | denoise | denoise_value<br>"
             "time_s | set_text | textblock_name | text_prompt | x | y | w | h | fore_color | back_color | font_name<br>"
             "time_s | clear_text | textblock_name<br>"
@@ -285,10 +288,10 @@ class Script(scripts.Script):
 
         key_frames = gr.Textbox(label="Keyframes:", lines=5, value="")
         return [i1, i2, i3, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg,
-                key_frames, denoising_strength, x_shift, y_shift, rotation, propfolder, seed_march, smoothing]
+                key_frames, denoising_strength, x_shift, y_shift, rotation, propfolder, seed_march, smoothing, add_noise, noise_strength]
 
     def run(self, p, i1, i2, i3, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos,
-            tmpl_neg, key_frames, denoising_strength, x_shift, y_shift, rotation, propfolder, seed_march, smoothing):
+            tmpl_neg, key_frames, denoising_strength, x_shift, y_shift, rotation, propfolder, seed_march, smoothing, add_noise, noise_strength):
 
         # Fix variable types, i.e. text boxes giving strings.
         total_time = float(total_time)
@@ -323,6 +326,7 @@ class Script(scripts.Script):
                      'neg2': np.nan,
                      'prompt': np.nan,
                      'denoise': np.nan,
+                     'noise': np.nan,
                      'x_shift': np.nan,
                      'y_shift': np.nan,
                      'zoom': np.nan,
@@ -330,11 +334,12 @@ class Script(scripts.Script):
 
         df = pd.DataFrame(variables, index=range(frame_count + 1))
         # Preload the dataframe with initial values.
-        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation']] = [denoising_strength,
+        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'noise']] = [denoising_strength,
                                                                             x_shift / fps,
                                                                             y_shift / fps,
                                                                             zoom_factor ** (1.0 / fps),
-                                                                            rotation / fps]
+                                                                            rotation / fps,
+                                                                            noise_strength]
 
         keyframes = {}
         my_prompts = []
@@ -364,6 +369,9 @@ class Script(scripts.Script):
             elif tmp_command == "denoise" and len(key_frame_parts) == 3:
                 # Time (s) | denoise | denoise
                 df.loc[tmp_frame_no, ['denoise']] = [float(key_frame_parts[2])]
+            elif tmp_command == "noise" and len(key_frame_parts) == 3:
+                # Time (s) | noise | noise_strength
+                df.loc[tmp_frame_no, ['noise']] = [float(key_frame_parts[2])]
             elif tmp_command == "seed" and len(key_frame_parts) == 3:
                 # Time (s) | seed | seed
                 my_seeds.append((tmp_frame_no, int(key_frame_parts[2])))
@@ -457,14 +465,14 @@ class Script(scripts.Script):
 
         # Check if templates are filled in. If not, try grab prompts at top (i.e. image sent from png info)
         if len(tmpl_pos.strip()) == 0:
-            tmpl_pos = p.prompt
+            tmpl_pos = p.prompt if len(p.prompt.strip()) > 0 else ''
         if len(tmpl_neg.strip()) == 0:
-            tmpl_neg = p.negative_prompt
+            tmpl_neg = p.negative_prompt if len(p.negative_prompt.strip()) > 0 else ''
 
-        df['pos_prompt'] = tmpl_pos + ", " + df['pos1'] + ":" + df['prompt'].map(str) + ' AND ' + tmpl_pos + ', ' + df[
-            'pos2'] + ":" + (1.0 - df['prompt']).map(str)
-        df['neg_prompt'] = tmpl_neg + ", " + df['neg1'] + ":" + df['prompt'].map(str) + ' AND ' + tmpl_neg + ', ' + df[
-            'neg2'] + ":" + (1.0 - df['prompt']).map(str)
+        df['pos_prompt'] = str(tmpl_pos) + ", " + df['pos1'].map(str) + ":" + df['prompt'].map(str) + ' AND ' + \
+                            str(tmpl_pos) + ', ' + df['pos2'].map(str) + ":" + (1.0 - df['prompt']).map(str)
+        df['neg_prompt'] = str(tmpl_neg) + ", " + df['neg1'].map(str) + ":" + df['prompt'].map(str) + ' AND ' + \
+                            str(tmpl_neg) + ', ' + df['neg2'].map(str) + ":" + (1.0 - df['prompt']).map(str)
 
         csv_filename = os.path.join(output_path, f"{str(output_filename)}_frames.csv")
         df.to_csv(csv_filename)
@@ -677,6 +685,10 @@ class Script(scripts.Script):
             #
             # Pre-process source frame
             #
+            # Noise
+            if add_noise:
+                # print("Adding Noise!!")
+                init_img = addnoise(init_img, df.loc[frame_no, ['noise']][0])
 
             # Debug, print out source frame
             # init_img.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}_initial.png"))
