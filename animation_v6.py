@@ -631,6 +631,7 @@ class Script(scripts.Script):
             p.batch_size = 1
             p.do_not_save_grid = True
 
+            init_img = None
             #
             # Get source frame
             #
@@ -673,34 +674,38 @@ class Script(scripts.Script):
             # Pre-process source frame
             #
             print("pre process frame")
+            if init_img is not None:
+                # Update transform details
+                x_shift_per_frame = df.loc[frame_no, ['x_shift']][0]
+                y_shift_per_frame = df.loc[frame_no, ['y_shift']][0]
+                rot_per_frame = df.loc[frame_no, ['rotation']][0]
+                zoom_factor = df.loc[frame_no, ['zoom']][0]
 
-            # Update transform details
-            x_shift_per_frame = df.loc[frame_no, ['x_shift']][0]
-            y_shift_per_frame = df.loc[frame_no, ['y_shift']][0]
-            rot_per_frame = df.loc[frame_no, ['rotation']][0]
-            zoom_factor = df.loc[frame_no, ['zoom']][0]
+                # Translate source frame when source is img2img where they have an effect frame to frame.
+                x_shift_cumulative = x_shift_cumulative + x_shift_per_frame
+                y_shift_cumulative = y_shift_cumulative + y_shift_per_frame
 
-            # Translate source frame when source is img2img where they have an effect frame to frame.
-            x_shift_cumulative = x_shift_cumulative + x_shift_per_frame
-            y_shift_cumulative = y_shift_cumulative + y_shift_per_frame
+                init_img = zoom_at2(init_img, rot_per_frame, int(x_shift_cumulative), int(y_shift_cumulative),
+                                    zoom_factor)
 
-            init_img = zoom_at2(init_img, rot_per_frame, int(x_shift_cumulative), int(y_shift_cumulative),
-                                zoom_factor)
+                # Subtract the integer portion we just shifted.
+                x_shift_cumulative = x_shift_cumulative - int(x_shift_cumulative)
+                y_shift_cumulative = y_shift_cumulative - int(y_shift_cumulative)
 
-            # Subtract the integer portion we just shifted.
-            x_shift_cumulative = x_shift_cumulative - int(x_shift_cumulative)
-            y_shift_cumulative = y_shift_cumulative - int(y_shift_cumulative)
+                # Props
+                if len(props) > 0:
+                    init_img = pasteprop(init_img, props, propfolder)
+                    props = {}
 
-            # Props
-            if len(props) > 0:
-                init_img = pasteprop(init_img, props, propfolder)
-                props = {}
+                # Noise
 
-            # Noise
+                if add_noise and is_img2img:
+                    # print("Adding Noise!!")
+                    init_img = addnoise(init_img, df.loc[frame_no, ['noise']][0])
 
-            if add_noise and is_img2img:
-                # print("Adding Noise!!")
-                init_img = addnoise(init_img, df.loc[frame_no, ['noise']][0])
+                print("processing frame now.")
+                state.job = f"Major frame {frame_no} of {frame_count}"
+                p.init_images = [init_img]
 
             # Debug, print out source frame
             # init_img.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}_initial.png"))
@@ -708,10 +713,7 @@ class Script(scripts.Script):
             #
             # Process source frame into destination frame
             #
-            print("processing frame now.")
-            state.job = f"Major frame {frame_no} of {frame_count}"
-            if is_img2img:
-                p.init_images = [init_img]
+
             processed = processing.process_images(p)
 
             #
