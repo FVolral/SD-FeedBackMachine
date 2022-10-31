@@ -245,14 +245,14 @@ class Script(scripts.Script):
             total_time = gr.Textbox(label="Total Animation Length (s)", lines=1, value="10.0")
             fps = gr.Textbox(label="Framerate", lines=1, value="15")
             smoothing = gr.Slider(label="Smoothing_Frames", minimum=0, maximum=32, step=1, value=0)
-        with gr.Row(visible=is_img2img):
+        with gr.Row():
             add_noise = gr.Checkbox(label="Add_Noise", value=False)
             noise_strength = gr.Slider(label="Noise Strength", minimum=0.0, maximum=1.0, step=0.01, value=0.10)
 
         i3 = gr.HTML("<p style=\"margin-bottom:0.75em\">Initial Parameters</p>")
-        with gr.Row(visible=is_img2img):
+        with gr.Row():
             with gr.Column():
-                denoising_strength = gr.Slider(label="Denoising Strength (overrides img2img slider)", minimum=0.0,
+                denoising_strength = gr.Slider(label="Denoising Strength", minimum=0.0,
                                                maximum=1.0, step=0.01, value=0.40)
                 seed_march = gr.Checkbox(label="Seed_March", value=False)
             with gr.Column():
@@ -636,17 +636,10 @@ class Script(scripts.Script):
             #
             print("get source frame")
             if source == 'img2img' and is_img2img:
-                # Update transform details
-                x_shift_per_frame = df.loc[frame_no, ['x_shift']][0]
-                y_shift_per_frame = df.loc[frame_no, ['y_shift']][0]
-                rot_per_frame = df.loc[frame_no, ['rotation']][0]
-                zoom_factor = df.loc[frame_no, ['zoom']][0]
-
                 # Extra processing parameters
                 if apply_colour_corrections:
                     p.color_corrections = initial_color_corrections
 
-                # Pre-process Image
                 # TODO: Make this seed marching a diff img source
                 if seed_march:
                     # Feed back last seed image
@@ -662,26 +655,11 @@ class Script(scripts.Script):
                     else:
                         init_img = processed.images[0]
 
-                # Props
-                if len(props) > 0:
-                    init_img = pasteprop(init_img, props, propfolder)
-                    props = {}
-
-                # Translate source frame when source is img2img where they have an effect frame to frame.
-                x_shift_cumulative = x_shift_cumulative + x_shift_per_frame
-                y_shift_cumulative = y_shift_cumulative + y_shift_per_frame
-
-                init_img = zoom_at2(init_img, rot_per_frame, int(x_shift_cumulative), int(y_shift_cumulative),
-                                    zoom_factor)
-
-                # Subtract the integer portion we just shifted.
-                x_shift_cumulative = x_shift_cumulative - int(x_shift_cumulative)
-                y_shift_cumulative = y_shift_cumulative - int(y_shift_cumulative)
-
             elif source == 'video' and is_img2img:
                 source_cap.set(1, frame_no)
                 ret, tmp_array = source_cap.read()
                 init_img = Image.fromarray(tmp_array.astype('uint8'), 'RGB')
+
             elif source == 'images' and is_img2img:
                 if frame_no >= len(source_cap):
                     init_img = Image.open(source_cap[-1])
@@ -694,8 +672,32 @@ class Script(scripts.Script):
             #
             # Pre-process source frame
             #
-            # Noise
             print("pre process frame")
+
+            # Update transform details
+            x_shift_per_frame = df.loc[frame_no, ['x_shift']][0]
+            y_shift_per_frame = df.loc[frame_no, ['y_shift']][0]
+            rot_per_frame = df.loc[frame_no, ['rotation']][0]
+            zoom_factor = df.loc[frame_no, ['zoom']][0]
+
+            # Translate source frame when source is img2img where they have an effect frame to frame.
+            x_shift_cumulative = x_shift_cumulative + x_shift_per_frame
+            y_shift_cumulative = y_shift_cumulative + y_shift_per_frame
+
+            init_img = zoom_at2(init_img, rot_per_frame, int(x_shift_cumulative), int(y_shift_cumulative),
+                                zoom_factor)
+
+            # Subtract the integer portion we just shifted.
+            x_shift_cumulative = x_shift_cumulative - int(x_shift_cumulative)
+            y_shift_cumulative = y_shift_cumulative - int(y_shift_cumulative)
+
+            # Props
+            if len(props) > 0:
+                init_img = pasteprop(init_img, props, propfolder)
+                props = {}
+
+            # Noise
+
             if add_noise and is_img2img:
                 # print("Adding Noise!!")
                 init_img = addnoise(init_img, df.loc[frame_no, ['noise']][0])
@@ -706,10 +708,10 @@ class Script(scripts.Script):
             #
             # Process source frame into destination frame
             #
+            print("processing frame now.")
             state.job = f"Major frame {frame_no} of {frame_count}"
             if is_img2img:
                 p.init_images = [init_img]
-            print("processing frame now.")
             processed = processing.process_images(p)
 
             #
