@@ -20,6 +20,7 @@ import pandas as pd
 import json
 import cv2
 import glob
+import shutil
 
 from PIL import Image, ImageFilter, ImageDraw, ImageFont
 
@@ -265,7 +266,7 @@ class Script(scripts.Script):
         tmpl_pos = gr.Textbox(label="Positive Prompts", lines=1, value="")
         tmpl_neg = gr.Textbox(label="Negative Prompts", lines=1, value="")
 
-        i5 = gr.HTML("<p>Props, Stamps</p>")
+        i5 = gr.HTML("<p style=\"margin-bottom:0.75em\">Props, Stamps</p>")
         propfolder = gr.Textbox(label="Poper_Folder:", lines=1, value="")
 
         i6 = gr.HTML(
@@ -297,6 +298,8 @@ class Script(scripts.Script):
     def run(self, p, i1, i2, i3, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos,
             tmpl_neg, key_frames, denoising_strength, x_shift, y_shift, rotation, propfolder, seed_march, smoothing,
             add_noise, noise_strength, is_img2img):
+
+        print(os.getcwd())
 
         # Fix variable types, i.e. text boxes giving strings.
         total_time = float(total_time)
