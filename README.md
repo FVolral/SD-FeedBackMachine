@@ -8,31 +8,27 @@ Inspired by Deforum Notebook
 Must have ffmpeg installed in path.
 This suffers from img2img embossing, if the image is static for too long. I would have to look at someone else's implemetation to figure out why and don't want to steal their code.
 
-## Versions
-### Original
-#### Original version of the script with one basic prompt format.
-### V2
-#### Broken down the growing prompt into individual commands to control various parameters. Added requested features. Rolled in changed from pull requests, thanks to contributers.
-### V3
-#### Changed the interpolation system, so various keyframes write values into a frame dataframe. Blank values are then interpolated, so transform changes are smoother. also used to interpolated prompts by default now.
-### V4
-#### Investigating seed marching. Look at some scripts and figured out how subseeds are meant to be used. Implemented it as an option. If you add seed keyframes and check the seed march box, the script will migrate from one seed to the next using the subseed & subseed strength interpolation. if you leave seed march unckecked, the seed value will interpolate from one integer to the next. View the final values in the dataframe .csv dump in the output folder.
-#### Seed marching doesn't seem to work well with transforms, if you combine them you'll get poor results.
-### V5
-#### Added some different sources for frames. If video is specified, frames will be grabbed from the supplied video file, until the end of the video is hit. Then the last frame will be repeated (i think). Images works silimarly, but you need to specify a path and wilcard file name, such as c:/images/*.png. A list of images will be created, alphabetically sorted by default. If there are not enough images for the specified duration, the last frame will be repeated.
-#### Specifying a different source other than img2img means the initial image in the UI will be ignored, but it needs to be there for the UI to work.
-#### Further, transformation won't have an effect, as there is no longer a feedback loop.
+# Major Features
+- Transformation
+  - In img2img mode, the picture can be zoomed and panned around to create pull shots, pans and the like. Off-frame sections will be filled in with edge pixels.
+- Prompt marching
+  - Prompts will be walked from one to the next. The Both prompts will be AND together with opposing weights.
+- Seed marching
+  - In txt2img mode, a seed value can be walked to another using subseed strength. It won't be a seamless transition.
+- Text boxes, props
+  - Post processing effects can be added onto frames that are written to disk. Maybe used for creating interesting videos.
 
 ## Explanation of settings:
 ### Video formats:
  Create GIF, webM or MP4 file from the series of images. Regardless, .bat files will be created with the right options to make the videos at a later time.
 
-## Total Animation Length (s):
+### Total Animation Length (s):
  Total number of seconds to create. Will create fps frames for every second, as you'd expect.
+
 ### Framerate:
  Frames per second to generate.
 
-## Denoising Strength:
+### Denoising Strength:
  Initial denoising strength value, overrides the value above which is a bit strong for a default. Will be overridden by keyframes when they are hit.
  Note that denoising is not scaled by fps, like other parameters are.
 ### Denoising Decay:
@@ -45,20 +41,18 @@ This suffers from img2img embossing, if the image is static for too long. I woul
 ### Y Pixel Shift (pixels/s):
  Shift the image down (+) or up (-) in pixels per second. Will be overridden by keyframes when they are hit.
 
-## Templates:
+### Templates:
  Provide common positive and negative prompts for each keyframe below, save typing them out over and over. They will only be applied when a keyframe is hit. The prompts in the keyframes will be appended to these and sent for processing until the next keyframe that has a prompt.
 
-## Keyframes:
+### Keyframes:
 Key frames have been broken down into individual commands, since the old keyframe was blowing out.
 Commands:
 
-"time_s | source | video, images, img2img | path<br>"
-
 ### source
 Set source of frames for processing.
-Format: time_s | prompt | positive_prompts | negative_prompts
+Format: time_s | source | video, images, img2img | path
 - time_s: Time in seconds from the start to make the change.
-- prompt: video, images, img2img
+- prompt: video, images, img2img. Source for the video frames. Default img2img.
 - path: Either the file name of the video file, or the path and wildcard filename of the images.
 ### prompt
 Set positive and negative prompts.
@@ -152,3 +146,23 @@ Format: time_s | model | model_name
 - time_s: Time in seconds from the start to make the change.
 - model: Command name.
 - model_name: Pick one from the list. Just the name with no extension or hash is fine.
+
+
+### Changelog
+- Original
+  - Original version of the script with one basic prompt format.
+- v2
+  - Broken down the growing prompt into individual commands to control various parameters. Added requested features. Rolled in changed from pull requests, thanks to contributers.
+- v3
+  - Changed the interpolation system, so various keyframes write values into a frame dataframe. Blank values are then interpolated, so transform changes are smoother. also used to interpolated prompts by default now.
+- v4
+  - Investigating seed marching. Look at some scripts and figured out how subseeds are meant to be used. Implemented it as an option. If you add seed keyframes and check the seed march box, the script will migrate from one seed to the next using the subseed & subseed strength interpolation. if you leave seed march unckecked, the seed value will interpolate from one integer to the next. View the final values in the dataframe .csv dump in the output folder.
+  - Seed marching doesn't seem to work well with transforms, if you combine them you'll get poor results.
+- v5
+  - Added some different sources for frames. If video is specified, frames will be grabbed from the supplied video file, until the end of the video is hit. Then the last frame will be repeated (i think). Images works silimarly, but you need to specify a path and wilcard file name, such as c:/images/*.png. A list of images will be created, alphabetically sorted by default. If there are not enough images for the specified duration, the last frame will be repeated.
+  - Specifying a different source other than img2img means the initial image in the UI will be ignored, but it needs to be there for the UI to work.
+  - Further, transformation won't have an effect, as there is no longer a feedback loop.
+- v6
+  - Allowed the script to work in txt2img tab. This is mainly for seed marching, as it doesn't make sense to recycle the images in this mode.
+  - Each frame is a fresh generation between two seeds.
+  - Re-enabled transforms for video and image sources. Requested feature.
