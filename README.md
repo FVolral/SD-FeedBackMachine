@@ -68,6 +68,12 @@ Format: time_s | prompt | positive_prompts | negative_prompts
 - template: Command name.
 - positive_prompts: Replacement positive prompts. Will be concatenated with the positive template.
 - negative_prompts: Replacement negative prompts. Will be concatenated with the negative template.
+### prompt_from_png
+Sets the seed, positive and negative prompts from the specified png file, if it contains it.
+Format: time_s | prompt_from_png | file_path
+- time_s: Time in seconds from the start to make the change.
+- prompt_from_png: Command name.
+- file path and name to a png file that contains the info you want.
 ### transform
 Set the current transform.
 Format: time_s | transform | zoom | x_shift | y_shift | rotation
