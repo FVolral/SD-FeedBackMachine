@@ -769,7 +769,7 @@ class Script(scripts.Script):
                 p.init_images = [init_img]
 
             # Debug, print out source frame
-            init_img.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}_initial.png"))
+            #init_img.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}_initial.png"))
 
             #
             # Process source frame into destination frame
