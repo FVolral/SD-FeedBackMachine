@@ -420,7 +420,7 @@ class Script(scripts.Script):
         output_filename = time.strftime('%Y%m%d%H%M%S')
         output_path = os.path.join(p.outpath_samples, output_filename)
         if not os.path.exists(output_path):
-            os.mkdir(output_path)
+            os.makedirs(output_path)
         p.do_not_save_samples = True
         p.do_not_save_grid = True
 
