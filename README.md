@@ -18,6 +18,10 @@ This suffers from img2img embossing, if the image is static for too long. I woul
 - Text boxes, props
   - Post processing effects can be added onto frames that are written to disk. Maybe used for creating interesting videos.
 
+## Installation
+Copy the python script into the stable-diffusion-webui\scripts folder. ffmpeg needs to be installed and available on %path%, i.e. you should be able to run it from the command line from any folder.
+You should run img2img at least once by itself to make sure the output folders have been created.
+
 ## Explanation of settings:
 ### Video formats:
  Create GIF, webM or MP4 file from the series of images. Regardless, .bat files will be created with the right options to make the videos at a later time.
@@ -74,6 +78,12 @@ Sets the seed, positive and negative prompts from the specified png file, if it 
 - time_s: Time in seconds from the start to make the change.
 - prompt_from_png: Command name.
 - file path and name to a png file that contains the info you want.
+### prompt_vtt
+Loads a series of prompts from a .vtt subtitle file. The first cue is read as positive prompts | negative prompts, and set at the specified cue time.
+- Format: `time_s | prompt_vtt | vtt_filepath`
+- time_s: Time in seconds from the start to make the change.
+- prompt_vtt: Command name.
+- file path and name to a vtt file that contains the positive and negative prompts.
 ### transform
 Set the current transform.
 - Format: `time_s | transform | zoom | x_shift | y_shift | rotation`
@@ -169,3 +179,4 @@ Allows you to change the model on the fly, if you need to. It won't change it ba
   - Allowed the script to work in txt2img tab. This is mainly for seed marching, as it doesn't make sense to recycle the images in this mode.
   - Each frame is a fresh generation between two seeds.
   - Re-enabled transforms for video and image sources. Requested feature.
+  - Added some new prompt commands.
