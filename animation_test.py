@@ -375,6 +375,7 @@ class Script(scripts.Script):
             "time_s | seed | new_seed_int<br>"
             "time_s | noise | added_noise_strength<br>"            
             "time_s | denoise | denoise_value<br>"
+            "time_s | cfg_scale | cfg_scale_value<br>"
             "time_s | set_text | textblock_name | text_prompt | x | y | w | h | fore_color | back_color | font_name<br>"
             "time_s | clear_text | textblock_name<br>"
             "time_s | prop | prop_name | prop_filename | x pos | y pos | scale | rotation<br>"
@@ -435,16 +436,18 @@ class Script(scripts.Script):
                      'x_shift': np.nan,
                      'y_shift': np.nan,
                      'zoom': np.nan,
-                     'rotation': np.nan}
+                     'rotation': np.nan,
+                     'cfg_scale': np.nan}
 
         df = pd.DataFrame(variables, index=range(frame_count + 1))
         # Preload the dataframe with initial values.
-        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'noise']] = [denoising_strength,
+        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'noise', 'cfg_scale']] = [denoising_strength,
                                                                             x_shift / fps,
                                                                             y_shift / fps,
                                                                             zoom_factor ** (1.0 / fps),
                                                                             rotation / fps,
-                                                                            noise_strength]
+                                                                            noise_strength,
+                                                                            p.cfg_scale]
 
         keyframes = {}
         my_prompts = []
@@ -474,6 +477,9 @@ class Script(scripts.Script):
             elif tmp_command == "denoise" and len(key_frame_parts) == 3 and is_img2img:
                 # Time (s) | denoise | denoise
                 df.loc[tmp_frame_no, ['denoise']] = [float(key_frame_parts[2])]
+            elif tmp_command == "cfg_scale" and len(key_frame_parts) == 3 and is_img2img:
+                # Time (s) | cfg_scale | cfg_scale
+                df.loc[tmp_frame_no, ['cfg_scale']] = [float(key_frame_parts[2])]
             elif tmp_command == "noise" and len(key_frame_parts) == 3 and is_img2img:
                 # Time (s) | noise | noise_strength
                 df.loc[tmp_frame_no, ['noise']] = [float(key_frame_parts[2])]
@@ -751,6 +757,8 @@ class Script(scripts.Script):
             p.n_iter = 1
             p.batch_size = 1
             p.do_not_save_grid = True
+
+            p.cfg_scale = float(df.loc[frame_no, ['cfg_scale']][0])
 
             init_img = None
             #
