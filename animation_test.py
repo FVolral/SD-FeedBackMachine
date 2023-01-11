@@ -23,6 +23,7 @@ import glob
 import shutil
 import piexif
 import piexif.helper
+from skimage import exposure
 
 from PIL import Image, ImageFilter, ImageDraw, ImageFont
 
@@ -316,6 +317,29 @@ def make_mp4(filepath, filename, fps, create_vid, create_bat):
 
     if create_vid:
         subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
+def old_setup_color_correction(image):
+    # logging.info("Calibrating color correction.")
+    correction_target = cv2.cvtColor(np.asarray(image.copy()), cv2.COLOR_RGB2LAB)
+    return correction_target
+
+
+def old_apply_color_correction(correction, original_image):
+    # logging.info("Applying color correction.")
+    image = Image.fromarray(cv2.cvtColor(exposure.match_histograms(
+        cv2.cvtColor(
+            np.asarray(original_image),
+            cv2.COLOR_RGB2LAB
+        ),
+        correction,
+        channel_axis=2
+    ), cv2.COLOR_LAB2RGB).astype("uint8"))
+
+    # This line breaks it
+    # image = blendLayers(image, original_image, BlendType.LUMINOSITY)
+
+    return image
 
 class Script(scripts.Script):
 
@@ -668,7 +692,7 @@ class Script(scripts.Script):
         state.job_count = frame_count
 
         if is_img2img:
-            initial_color_corrections = [processing.setup_color_correction(p.init_images[0])]
+            initial_color_corrections = old_setup_color_correction(p.init_images[0])
 
         x_shift_cumulative = 0
         y_shift_cumulative = 0
@@ -713,7 +737,7 @@ class Script(scripts.Script):
                         apply_colour_corrections = True
                         if frame_no > 0:
                             # Colour correction is set automatically above
-                            initial_color_corrections = [processing.setup_color_correction(p.init_images[0])]
+                            initial_color_corrections = old_setup_color_correction(p.init_images[0])
                     elif keyframe_command == "col_clear" and len(keyframe) == 1 and is_img2img:
                         # Time (s) | col_clear
                         apply_colour_corrections = False
@@ -767,8 +791,6 @@ class Script(scripts.Script):
             # print("get source frame")
             if source == 'img2img' and is_img2img:
                 # Extra processing parameters
-                if apply_colour_corrections:
-                    p.color_corrections = initial_color_corrections
 
                 # TODO: Make this seed marching a diff img source
                 if seed_march:
@@ -784,6 +806,10 @@ class Script(scripts.Script):
                         init_img = p.init_images[0]
                     else:
                         init_img = processed.images[0]
+
+                # Apply colour corrections after we get the recycled init img.
+                if apply_colour_corrections:
+                    init_img = old_apply_color_correction(initial_color_corrections, init_img)
 
             elif source == 'video' and is_img2img:
                 source_cap.set(1, frame_no)
