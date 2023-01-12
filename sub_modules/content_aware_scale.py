@@ -1,11 +1,7 @@
-# USAGE:
-# python seam_carving.py (-resize | -remove) -im IM -out OUT [-mask MASK]
-#                        [-rmask RMASK] [-dy DY] [-dx DX] [-vis] [-hremove] [-backward_energy]
-# Examples:
-# python seam_carving.py -resize -im demos/ratatouille.jpg -out ratatouille_resize.jpg
-#        -mask demos/ratatouille_mask.jpg -dy 20 -dx -200 -vis
-# python seam_carving.py -remove -im demos/eiffel.jpg -out eiffel_remove.jpg
-#        -rmask demos/eiffel_mask.jpg -vis
+"""
+    Source: https://github.com/andrewdcampbell/seam-carving
+"""
+
 import time
 import numpy as np
 import cv2
@@ -13,6 +9,16 @@ import argparse
 from numba import njit
 from numba.experimental import jitclass
 from scipy import ndimage as ndi
+
+"""
+    CONTENT AWARE SCALE FUNCTION
+"""
+SEAM_COLOR = np.array([255, 200, 200])    # seam visualization color (BGR)
+SHOULD_DOWNSIZE = False                    # if True, downsize image for faster carving
+DOWNSIZE_WIDTH = 500                      # resized image width if SHOULD_DOWNSIZE is True
+ENERGY_MASK_CONST = 100000.0              # large energy value for protective masking
+MASK_THRESHOLD = 10                       # minimum pixel intensity for binary mask
+USE_FORWARD_ENERGY = True                 # if True, use forward energy algorithm
 
 
 
@@ -315,70 +321,4 @@ def object_removal(im, rmask, mask=None, vis=False, horizontal_removal=False):
         output = rotate_image(output, False)
 
     return output
-
-
-SEAM_COLOR = np.array([255, 200, 200])    # seam visualization color (BGR)
-SHOULD_DOWNSIZE = False                    # if True, downsize image for faster carving
-DOWNSIZE_WIDTH = 500                      # resized image width if SHOULD_DOWNSIZE is True
-ENERGY_MASK_CONST = 100000.0              # large energy value for protective masking
-MASK_THRESHOLD = 10                       # minimum pixel intensity for binary mask
-USE_FORWARD_ENERGY = True                 # if True, use forward energy algorithm
-
-
-if __name__ == '__main__':
-    start_time = time.time()
-    ap = argparse.ArgumentParser()
-    group = ap.add_mutually_exclusive_group(required=True)
-    group.add_argument("-resize", action='store_true')
-    group.add_argument("-remove", action='store_true')
-
-    ap.add_argument("-im", help="Path to image", required=True)
-    ap.add_argument("-out", help="Output file name", required=True)
-    ap.add_argument("-iteration", help="Number of iteration ", type=int, default=1)
-    ap.add_argument("-mask", help="Path to (protective) mask")
-    ap.add_argument("-rmask", help="Path to removal mask")
-    ap.add_argument("-dy", help="Number of vertical seams to add/subtract", type=int, default=0)
-    ap.add_argument("-dx", help="Number of horizontal seams to add/subtract", type=int, default=0)
-    ap.add_argument("-vis", help="Visualize the seam removal process", action='store_true')
-    ap.add_argument("-hremove", help="Remove horizontal seams for object removal", action='store_true')
-    ap.add_argument("-backward_energy", help="Use backward energy map (default is forward)", action='store_true')
-    args = vars(ap.parse_args())
-
-    IM_PATH, MASK_PATH, OUTPUT_NAME, R_MASK_PATH = args["im"], args["mask"], args["out"], args["rmask"]
-
-    im = cv2.imread(IM_PATH)
-    original_width = im.shape[1]
-    original_height = im.shape[0]
-    original_dim = (original_width, original_height)
-
-    assert im is not None
-    mask = cv2.imread(MASK_PATH, 0) if MASK_PATH else None
-    rmask = cv2.imread(R_MASK_PATH, 0) if R_MASK_PATH else None
-
-    USE_FORWARD_ENERGY = not args["backward_energy"]
-
-    # downsize image for faster processing
-    h, w = im.shape[:2]
-
-
-
-    dy, dx = args["dy"], args["dx"]
-    output = seam_carve(im, dy, dx, mask, args["vis"])
-    resized = cv2.resize(output, original_dim, interpolation = cv2.INTER_LANCZOS4)
-
-    if args["iteration"] > 1:
-        for i in range(args["iteration"]):
-            output = seam_carve(resized, dy, dx, mask, args["vis"])
-            resized = cv2.resize(output, original_dim, interpolation = cv2.INTER_LANCZOS4)
-
-    cv2.imwrite(OUTPUT_NAME, resized)
-    end_time = time.time()
-    time_elapsed = end_time - start_time
-    print(f'Time elapsed : {time_elapsed}')
-
-    # object removal mode
-    if args["remove"]:
-        assert rmask is not None
-        output = object_removal(im, rmask, mask, args["vis"], args["hremove"])
-        cv2.imwrite(OUTPUT_NAME, output)
 
