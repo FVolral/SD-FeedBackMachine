@@ -1,11 +1,19 @@
 #
-# Animation Script v6.0
+# Animation Script v6.0-CAS
 # Inspired by Deforum Notebook
 # Must have ffmpeg installed in path.
 # Poor img2img implentation, will trash images that aren't moving.
 #
 # See https://github.com/Animator-Anon/Animator
 
+# IMPORT CONTENT AWARE SCALE
+import argparse
+from numba import njit
+from numba.experimental import jitclass
+from scipy import ndimage as ndi
+
+
+# IMPORT ANIMATION V6
 import os
 import time
 import modules.scripts as scripts
@@ -26,6 +34,343 @@ import piexif.helper
 
 from PIL import Image, ImageFilter, ImageDraw, ImageFont
 
+"""
+cv2 to Image et vice versa
+"""
+def convert_from_cv2_to_image(img: np.ndarray) -> Image:
+    # return Image.fromarray(img)
+    return Image.fromarray(cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_BGR2RGB))
+
+def convert_from_image_to_cv2(img: Image) -> np.ndarray:
+    # return np.asarray(img)
+    return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+
+"""
+    CONTENT AWARE SCALE FUNCTION
+"""
+SEAM_COLOR = np.array([255, 200, 200])    # seam visualization color (BGR)
+SHOULD_DOWNSIZE = False                    # if True, downsize image for faster carving
+DOWNSIZE_WIDTH = 500                      # resized image width if SHOULD_DOWNSIZE is True
+ENERGY_MASK_CONST = 100000.0              # large energy value for protective masking
+MASK_THRESHOLD = 10                       # minimum pixel intensity for binary mask
+USE_FORWARD_ENERGY = True                 # if True, use forward energy algorithm
+
+
+def content_aware_scale(img, dx, dy):
+    cv2_img = convert_from_image_to_cv2(img)
+    original_width = cv2_img.shape[1]
+    original_height = cv2_img.shape[0]
+    original_dim = (original_width, original_height)
+    output = seam_carve(cv2_img, dy, dx)
+    resized = cv2.resize(output, original_dim, interpolation = cv2.INTER_LANCZOS4)
+    pil_img = convert_from_cv2_to_image(resized)
+    return pil_img
+
+def visualize(im, boolmask=None, rotate=False):
+    vis = im.astype(np.uint8)
+    if boolmask is not None:
+        vis[np.where(boolmask == False)] = SEAM_COLOR
+    if rotate:
+        vis = rotate_image(vis, False)
+    cv2.imshow("visualization", vis)
+    cv2.waitKey(1)
+    return vis
+
+def resize(image, width):
+    dim = None
+    h, w = image.shape[:2]
+    dim = (width, int(h * width / float(w)))
+    return cv2.resize(image, dim)
+
+def rotate_image(image, clockwise):
+    k = 1 if clockwise else 3
+    return np.rot90(image, k)
+
+
+def backward_energy(im):
+    """
+    Simple gradient magnitude energy map.
+    """
+    xgrad = ndi.convolve1d(im, np.array([1, 0, -1]), axis=1, mode='wrap')
+    ygrad = ndi.convolve1d(im, np.array([1, 0, -1]), axis=0, mode='wrap')
+
+    grad_mag = np.sqrt(np.sum(xgrad**2, axis=2) + np.sum(ygrad**2, axis=2))
+
+    # vis = visualize(grad_mag)
+    # cv2.imwrite("backward_energy_demo.jpg", vis)
+
+    return grad_mag
+
+
+def forward_energy(im):
+    """
+    Forward energy algorithm as described in "Improved Seam Carving for Video Retargeting"
+    by Rubinstein, Shamir, Avidan.
+    Vectorized code adapted from
+    https://github.com/axu2/improved-seam-carving.
+    """
+    h, w = im.shape[:2]
+    im = cv2.cvtColor(im.astype(np.uint8), cv2.COLOR_BGR2GRAY).astype(np.float64)
+
+    energy = np.zeros((h, w))
+    m = np.zeros((h, w))
+
+    U = np.roll(im, 1, axis=0)
+    L = np.roll(im, 1, axis=1)
+    R = np.roll(im, -1, axis=1)
+
+    cU = np.abs(R - L)
+    cL = np.abs(U - L) + cU
+    cR = np.abs(U - R) + cU
+
+    for i in range(1, h):
+        mU = m[i-1]
+        mL = np.roll(mU, 1)
+        mR = np.roll(mU, -1)
+
+        mULR = np.array([mU, mL, mR])
+        cULR = np.array([cU[i], cL[i], cR[i]])
+        mULR += cULR
+
+        argmins = np.argmin(mULR, axis=0)
+        m[i] = np.choose(argmins, mULR)
+        energy[i] = np.choose(argmins, cULR)
+
+    # vis = visualize(energy)
+    # cv2.imwrite("forward_energy_demo.jpg", vis)
+
+    return energy
+
+
+@njit
+def add_seam(im, seam_idx):
+    """
+    Add a vertical seam to a 3-channel color image at the indices provided
+    by averaging the pixels values to the left and right of the seam.
+    Code adapted from https://github.com/vivianhylee/seam-carving.
+    """
+    h, w = im.shape[:2]
+    output = np.zeros((h, w + 1, 3))
+    for row in range(h):
+        col = seam_idx[row]
+        for ch in range(3):
+            if col == 0:
+                p = np.mean(im[row, col: col + 2, ch])
+                output[row, col, ch] = im[row, col, ch]
+                output[row, col + 1, ch] = p
+                output[row, col + 1:, ch] = im[row, col:, ch]
+            else:
+                p = np.mean(im[row, col - 1: col + 1, ch])
+                output[row, : col, ch] = im[row, : col, ch]
+                output[row, col, ch] = p
+                output[row, col + 1:, ch] = im[row, col:, ch]
+
+    return output
+
+@njit
+def add_seam_grayscale(im, seam_idx):
+    """
+    Add a vertical seam to a grayscale image at the indices provided
+    by averaging the pixels values to the left and right of the seam.
+    """
+    h, w = im.shape[:2]
+    output = np.zeros((h, w + 1))
+    for row in range(h):
+        col = seam_idx[row]
+        if col == 0:
+            p = np.mean(im[row, col: col + 2])
+            output[row, col] = im[row, col]
+            output[row, col + 1] = p
+            output[row, col + 1:] = im[row, col:]
+        else:
+            p = np.mean(im[row, col - 1: col + 1])
+            output[row, : col] = im[row, : col]
+            output[row, col] = p
+            output[row, col + 1:] = im[row, col:]
+
+    return output
+
+
+def remove_seam(im, boolmask):
+    h, w = im.shape[:2]
+    boolmask3c = np.stack([boolmask] * 3, axis=2)
+    return im[boolmask3c].reshape((h, w - 1, 3))
+
+
+def remove_seam_grayscale(im, boolmask):
+    h, w = im.shape[:2]
+    return im[boolmask].reshape((h, w - 1))
+
+
+def get_minimum_seam(im, mask=None, remove_mask=None):
+    """
+    DP algorithm for finding the seam of minimum energy. Code adapted from
+    https://karthikkaranth.me/blog/implementing-seam-carving-with-python/
+    """
+    h, w = im.shape[:2]
+    energyfn = forward_energy if USE_FORWARD_ENERGY else backward_energy
+    M = energyfn(im)
+
+    if mask is not None:
+        M[np.where(mask > MASK_THRESHOLD)] = ENERGY_MASK_CONST
+
+    # give removal mask priority over protective mask by using larger negative value
+    if remove_mask is not None:
+        M[np.where(remove_mask > MASK_THRESHOLD)] = -ENERGY_MASK_CONST * 100
+
+    seam_idx, boolmask = compute_shortest_path(M, im, h, w)
+
+    return np.array(seam_idx), boolmask
+
+@njit
+def compute_shortest_path(M, im, h, w):
+    backtrack = np.zeros_like(M, dtype=np.int_)
+
+    # populate DP matrix
+    for i in range(1, h):
+        for j in range(0, w):
+            if j == 0:
+                idx = np.argmin(M[i - 1, j:j + 2])
+                backtrack[i, j] = idx + j
+                min_energy = M[i-1, idx + j]
+            else:
+                idx = np.argmin(M[i - 1, j - 1:j + 2])
+                backtrack[i, j] = idx + j - 1
+                min_energy = M[i - 1, idx + j - 1]
+
+            M[i, j] += min_energy
+
+    # backtrack to find path
+    seam_idx = []
+    boolmask = np.ones((h, w), dtype=np.bool_)
+    j = np.argmin(M[-1])
+    for i in range(h-1, -1, -1):
+        boolmask[i, j] = False
+        seam_idx.append(j)
+        j = backtrack[i, j]
+
+    seam_idx.reverse()
+    return seam_idx, boolmask
+
+#######################################
+
+def seams_removal(im, num_remove, mask=None, vis=False, rot=False):
+    for _ in range(num_remove):
+        seam_idx, boolmask = get_minimum_seam(im, mask)
+        if vis:
+            visualize(im, boolmask, rotate=rot)
+        im = remove_seam(im, boolmask)
+        if mask is not None:
+            mask = remove_seam_grayscale(mask, boolmask)
+    return im, mask
+
+
+def seams_insertion(im, num_add, mask=None, vis=False, rot=False):
+    seams_record = []
+    temp_im = im.copy()
+    temp_mask = mask.copy() if mask is not None else None
+
+    for _ in range(num_add):
+        print(f'get_minimum_seam')
+        seam_idx, boolmask = get_minimum_seam(temp_im, temp_mask)
+        if vis:
+            visualize(temp_im, boolmask, rotate=rot)
+
+        seams_record.append(seam_idx)
+        print(f'remove_seam')
+        temp_im = remove_seam(temp_im, boolmask)
+        print(f'remove_seam_grayscale')
+        if temp_mask is not None:
+            temp_mask = remove_seam_grayscale(temp_mask, boolmask)
+
+    print(f'seams_record.reverse()')
+    seams_record.reverse()
+
+    for _ in range(num_add):
+        seam = seams_record.pop()
+        print(f'add_seam()')
+        im = add_seam(im, seam)
+        if vis:
+            visualize(im, rotate=rot)
+        if mask is not None:
+            mask = add_seam_grayscale(mask, seam)
+
+        # update the remaining seam indices
+        for remaining_seam in seams_record:
+            remaining_seam[np.where(remaining_seam >= seam)] += 2
+
+    return im, mask
+
+
+def seam_carve(im, dy, dx, mask=None, vis=False):
+    im = im.astype(np.float64)
+    h, w = im.shape[:2]
+    assert h + dy > 0 and w + dx > 0 and dy <= h and dx <= w
+
+    if mask is not None:
+        mask = mask.astype(np.float64)
+
+    output = im
+
+    if dx < 0:
+        output, mask = seams_removal(output, -dx, mask, vis)
+
+    elif dx > 0:
+        output, mask = seams_insertion(output, dx, mask, vis)
+
+    if dy < 0:
+        output = rotate_image(output, True)
+        if mask is not None:
+            mask = rotate_image(mask, True)
+        output, mask = seams_removal(output, -dy, mask, vis, rot=True)
+        output = rotate_image(output, False)
+
+    elif dy > 0:
+        output = rotate_image(output, True)
+        if mask is not None:
+            mask = rotate_image(mask, True)
+        output, mask = seams_insertion(output, dy, mask, vis, rot=True)
+        output = rotate_image(output, False)
+
+    return output
+
+
+def object_removal(im, rmask, mask=None, vis=False, horizontal_removal=False):
+    im = im.astype(np.float64)
+    rmask = rmask.astype(np.float64)
+    if mask is not None:
+        mask = mask.astype(np.float64)
+    output = im
+
+    h, w = im.shape[:2]
+
+    if horizontal_removal:
+        output = rotate_image(output, True)
+        rmask = rotate_image(rmask, True)
+        if mask is not None:
+            mask = rotate_image(mask, True)
+
+    while len(np.where(rmask > MASK_THRESHOLD)[0]) > 0:
+        seam_idx, boolmask = get_minimum_seam(output, mask, rmask)
+        if vis:
+            visualize(output, boolmask, rotate=horizontal_removal)
+        output = remove_seam(output, boolmask)
+        rmask = remove_seam_grayscale(rmask, boolmask)
+        if mask is not None:
+            mask = remove_seam_grayscale(mask, boolmask)
+
+    num_add = (h if horizontal_removal else w) - output.shape[1]
+    output, mask = seams_insertion(output, num_add, mask, vis, rot=horizontal_removal)
+    if horizontal_removal:
+        output = rotate_image(output, False)
+
+    return output
+
+
+
+"""
+    ORIGINAL ANIMATION V6
+"""
 
 def zoom_at2(img, rot, x, y, zoom):
     w, h = img.size
@@ -267,7 +612,7 @@ def make_mp4(filepath, filename, fps, create_vid, create_bat):
 class Script(scripts.Script):
 
     def title(self):
-        return "Animator v6"
+        return "Animator v6a"
 
     def show(self, is_img2img: bool):
         return True
@@ -304,6 +649,13 @@ class Script(scripts.Script):
                 y_shift = gr.Textbox(label="Y Pixel Shift (pixels/s)", lines=1, value="0")
                 rotation = gr.Textbox(label="Rotation (deg/s)", lines=1, value="0")
 
+            with gr.Column():
+                i3b = gr.HTML("<p style=\"margin-bottom:0.85em\">Content Aware Scale</p>")
+                cas_dx = gr.Slider(label="DX", minimum=-100,
+                                               maximum=100, step=1, value=0)
+                cas_dy = gr.Slider(label="DY", minimum=-100,
+                                               maximum=100, step=1, value=0)
+
         i4 = gr.HTML("<p style=\"margin-bottom:0.75em\">Prompt Template, applied to each keyframe below</p>")
         tmpl_pos = gr.Textbox(label="Positive Prompts", lines=1, value="")
         tmpl_neg = gr.Textbox(label="Negative Prompts", lines=1, value="")
@@ -334,12 +686,12 @@ class Script(scripts.Script):
         chkimg2img = gr.Checkbox(label="img2img_mode", value=is_img2img, visible=False)
 
         key_frames = gr.Textbox(label="Keyframes:", lines=5, value="")
-        return [i1, i2, i3, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg,
-                key_frames, denoising_strength, x_shift, y_shift, rotation, propfolder, seed_march, smoothing,
+        return [i1, i2, i3, i3b, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg,
+                key_frames, denoising_strength, x_shift, y_shift, rotation, cas_dx, cas_dy, propfolder, seed_march, smoothing,
                 add_noise, noise_strength, chkimg2img]
 
-    def run(self, p, i1, i2, i3, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos,
-            tmpl_neg, key_frames, denoising_strength, x_shift, y_shift, rotation, propfolder, seed_march, smoothing,
+    def run(self, p, i1, i2, i3, i3b, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos,
+            tmpl_neg, key_frames, denoising_strength, x_shift, y_shift, rotation, cas_dx, cas_dy, propfolder, seed_march, smoothing,
             add_noise, noise_strength, is_img2img):
 
         print(os.getcwd())
@@ -351,6 +703,8 @@ class Script(scripts.Script):
         x_shift = float(x_shift)
         y_shift = float(y_shift)
         rotation = float(rotation)
+        cas_dx = int(cas_dx)
+        cas_dy = int(cas_dy)
         apply_colour_corrections = True
 
         frame_count = int(fps * total_time)
@@ -364,9 +718,18 @@ class Script(scripts.Script):
         source_cap = None
 
         output_filename = time.strftime('%Y%m%d%H%M%S')
-        output_path = os.path.join(p.outpath_samples, output_filename)
+
+        # Path on Google Colab
+        output_path = os.path.join('/content/gdrive/MyDrive/seq_img/animators_render/', output_filename)
+
         if not os.path.exists(output_path):
-            os.mkdir(output_path)
+            try:
+                os.mkdir(output_path)
+            except:
+                # Local Path
+                output_path = os.path.join(p.outpath_samples, output_filename)
+                os.mkdir(output_path)
+
         p.do_not_save_samples = True
         p.do_not_save_grid = True
 
@@ -385,11 +748,13 @@ class Script(scripts.Script):
 
         df = pd.DataFrame(variables, index=range(frame_count + 1))
         # Preload the dataframe with initial values.
-        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'noise']] = [denoising_strength,
+        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'cas_dx', 'cas_dy', 'noise']] = [denoising_strength,
                                                                             x_shift / fps,
                                                                             y_shift / fps,
                                                                             zoom_factor ** (1.0 / fps),
                                                                             rotation / fps,
+                                                                            cas_dx,
+                                                                            cas_dy,
                                                                             noise_strength]
 
         keyframes = {}
@@ -488,6 +853,7 @@ class Script(scripts.Script):
                 df.loc[my_prompts[x][0] - 1, 'prompt'] = 0
         df.at[df.index[-1], 'prompt'] = 0
 
+        """
         if len(my_seeds) > 0:
             # Seed commands given.
             my_seeds = sorted(my_seeds)
@@ -510,10 +876,11 @@ class Script(scripts.Script):
                 df['seed_str'] = 0
         else:
             # No seeds given, load in initial value, series fill. Set sub-seed to None to disable.
-            df.at[df.index[0], 'seed_start'] = int(p.seed)
-            df.at[df.index[-1], 'seed_start'] = int(p.seed) + frame_count
-            df['seed_end'] = None
-            df['seed_str'] = 0
+        """
+        df.at[df.index[0], 'seed_start'] = int(p.seed)
+        df.at[df.index[-1], 'seed_start'] = int(p.seed)
+        df['seed_end'] = None
+        df['seed_str'] = 0
 
         # Interpolate columns individually depending on how many data points.
         for name, values in df.items():
@@ -561,6 +928,8 @@ class Script(scripts.Script):
             "Initial X Pixel Shift": x_shift,
             "Initial Y Pixel Shift": y_shift,
             "Rotation": rotation,
+            "Content Aware Scale DX": cas_dx,
+            "Content Aware Scale DY": cas_dy,
             "Prop Folder": propfolder,
             "Prompt Template Positive": tmpl_pos,
             "Prompt Template Negative": tmpl_neg,
@@ -741,6 +1110,10 @@ class Script(scripts.Script):
                 y_shift_per_frame = df.loc[frame_no, ['y_shift']][0]
                 rot_per_frame = df.loc[frame_no, ['rotation']][0]
                 zoom_factor = df.loc[frame_no, ['zoom']][0]
+                cas_dx = df.loc[frame_no, ['cas_dx']][0]
+                cas_dy = df.loc[frame_no, ['cas_dy']][0]
+                cas_dx = int(cas_dx)
+                cas_dy = int(cas_dy)
 
                 # Translate source frame when source is img2img where they have an effect frame to frame.
                 x_shift_cumulative = x_shift_cumulative + x_shift_per_frame
@@ -748,6 +1121,7 @@ class Script(scripts.Script):
 
                 init_img = zoom_at2(init_img, rot_per_frame, int(x_shift_cumulative), int(y_shift_cumulative),
                                     zoom_factor)
+                init_img = content_aware_scale(init_img, cas_dx, cas_dy)
 
                 # Subtract the integer portion we just shifted.
                 x_shift_cumulative = x_shift_cumulative - int(x_shift_cumulative)

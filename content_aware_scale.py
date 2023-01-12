@@ -15,9 +15,6 @@ from numba.experimental import jitclass
 from scipy import ndimage as ndi
 
 
-########################################
-# UTILITY CODE
-########################################
 
 def visualize(im, boolmask=None, rotate=False):
     vis = im.astype(np.uint8)
@@ -39,9 +36,6 @@ def rotate_image(image, clockwise):
     k = 1 if clockwise else 3
     return np.rot90(image, k)
 
-########################################
-# ENERGY FUNCTIONS
-########################################
 
 def backward_energy(im):
     """
@@ -97,9 +91,6 @@ def forward_energy(im):
 
     return energy
 
-########################################
-# SEAM HELPER FUNCTIONS
-########################################
 
 @njit
 def add_seam(im, seam_idx):
@@ -211,9 +202,7 @@ def compute_shortest_path(M, im, h, w):
     seam_idx.reverse()
     return seam_idx, boolmask
 
-########################################
-# MAIN ALGORITHM
-########################################
+#######################################
 
 def seams_removal(im, num_remove, mask=None, vis=False, rot=False):
     for _ in range(num_remove):
@@ -262,9 +251,6 @@ def seams_insertion(im, num_add, mask=None, vis=False, rot=False):
 
     return im, mask
 
-########################################
-# MAIN DRIVER FUNCTIONS
-########################################
 
 def seam_carve(im, dy, dx, mask=None, vis=False):
     im = im.astype(np.float64)
