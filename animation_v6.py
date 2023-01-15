@@ -27,6 +27,7 @@ import glob
 import shutil
 import piexif
 import piexif.helper
+from skimage import exposure
 
 from PIL import Image, ImageFilter, ImageDraw, ImageFont
 """
@@ -129,6 +130,59 @@ def get_pnginfo(filepath):
         worked = True
 
     return worked, geninfo, info
+
+
+def read_vtt(filepath, total_time, fps):
+    vttlist = []
+    #if not os.path.exists(filepath):
+    #    print("VTT: Cannot locate vtt file: " + filepath)
+    #    return vttlist
+
+    with open(filepath, 'r') as vtt_file:
+        tmp_vtt_line = vtt_file.readline()
+        tmp_vtt_frame_no = 0
+        if "WEBVTT" not in tmp_vtt_line:
+            print("VTT: Incorrect header: " + tmp_vtt_line)
+            return vttlist
+
+        while 1:
+            tmp_vtt_line = vtt_file.readline()
+            if not tmp_vtt_line:
+                break
+
+            tmp_vtt_line = tmp_vtt_line.strip()
+            if len(tmp_vtt_line) < 1:
+                continue
+
+            if '-->' in tmp_vtt_line:
+                # 00:00:01.510 --> 00:00:05.300
+                tmp_vtt_a = tmp_vtt_line.split('-->')
+                # 00:00:01.510
+                tmp_vtt_b = tmp_vtt_a[0].split(':')
+                if len(tmp_vtt_b) == 2:
+                    # [00,05.000]
+                    tmp_vtt_frame_time = float(tmp_vtt_b[1]) + \
+                                         60.0 * float(tmp_vtt_b[0])
+                elif len(tmp_vtt_b) == 3:
+                    # [00,00,01.510]
+                    tmp_vtt_frame_time = float(tmp_vtt_b[2]) + \
+                                         60.0 * float(tmp_vtt_b[1]) + \
+                                         3600.0 * float(tmp_vtt_b[0])
+                else:
+                    # Badly formatted time string. Set high value to skip next prompt.
+                    tmp_vtt_frame_time = 1e99
+                tmp_vtt_frame_no = int(tmp_vtt_frame_time * fps)
+
+            if '|' in tmp_vtt_line:
+                # pos prompt | neg prompt
+                tmp_vtt_line_parts = tmp_vtt_line.split('|')
+                if len(tmp_vtt_line_parts) >= 2 and tmp_vtt_frame_time < total_time:
+                    vttlist.append((tmp_vtt_frame_no,
+                                       tmp_vtt_line_parts[0].strip().lstrip('-').strip(),
+                                       tmp_vtt_line_parts[1]))
+                    tmp_vtt_frame_time = 1e99
+
+    return vttlist
 
 
 def pasteprop(img, props, propfolder):
@@ -249,7 +303,7 @@ def make_gif(filepath, filename, fps, create_vid, create_bat):
     # create bat file
     if create_bat:
         with open(os.path.join(filepath, "makegif.bat"), "w+", encoding="utf-8") as f:
-            f.writelines([" ".join(cmd)])#, "\r\n", "pause"])
+            f.writelines([" ".join(cmd)]) #, "\r\n", "pause"])
     # Fix paths for normal output
     cmd[5] = os.path.join(filepath, in_filename)
     cmd[6] = os.path.join(filepath, out_filename)
@@ -311,6 +365,29 @@ def make_mp4(filepath, filename, fps, create_vid, create_bat):
     if create_vid:
         subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+
+def old_setup_color_correction(image):
+    # logging.info("Calibrating color correction.")
+    correction_target = cv2.cvtColor(np.asarray(image.copy()), cv2.COLOR_RGB2LAB)
+    return correction_target
+
+
+def old_apply_color_correction(correction, original_image):
+    # logging.info("Applying color correction.")
+    image = Image.fromarray(cv2.cvtColor(exposure.match_histograms(
+        cv2.cvtColor(
+            np.asarray(original_image),
+            cv2.COLOR_RGB2LAB
+        ),
+        correction,
+        channel_axis=2
+    ), cv2.COLOR_LAB2RGB).astype("uint8"))
+
+    # This line breaks it
+    # image = blendLayers(image, original_image, BlendType.LUMINOSITY)
+
+    return image
+
 class Script(scripts.Script):
 
     def title(self):
@@ -371,10 +448,12 @@ class Script(scripts.Script):
             "time_s | prompt | positive_prompts | negative_prompts<br>"
             "time_s | template | positive_prompts | negative_prompts<br>"
             "time_s | prompt_from_png | file_path<br>"
+            "time_s | prompt_vtt | vtt_filepath<br>"
             "time_s | transform | zoom | x_shift | y_shift | rotation<br>"
             "time_s | seed | new_seed_int<br>"
             "time_s | noise | added_noise_strength<br>"            
             "time_s | denoise | denoise_value<br>"
+            "time_s | cfg_scale | cfg_scale_value<br>"
             "time_s | set_text | textblock_name | text_prompt | x | y | w | h | fore_color | back_color | font_name<br>"
             "time_s | clear_text | textblock_name<br>"
             "time_s | prop | prop_name | prop_filename | x pos | y pos | scale | rotation<br>"
@@ -446,11 +525,13 @@ class Script(scripts.Script):
                      'x_shift': np.nan,
                      'y_shift': np.nan,
                      'zoom': np.nan,
-                     'rotation': np.nan}
+                     'rotation': np.nan,
+                     'cfg_scale': np.nan}
 
         df = pd.DataFrame(variables, index=range(frame_count + 1))
         # Preload the dataframe with initial values.
         df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'cas_dx', 'cas_dy', 'noise']] = [denoising_strength,
+
                                                                             x_shift / fps,
                                                                             y_shift / fps,
                                                                             zoom_factor ** (1.0 / fps),
@@ -458,6 +539,7 @@ class Script(scripts.Script):
                                                                             cas_dx,
                                                                             cas_dy,
                                                                             noise_strength]
+
 
         keyframes = {}
         my_prompts = []
@@ -487,6 +569,9 @@ class Script(scripts.Script):
             elif tmp_command == "denoise" and len(key_frame_parts) == 3 and is_img2img:
                 # Time (s) | denoise | denoise
                 df.loc[tmp_frame_no, ['denoise']] = [float(key_frame_parts[2])]
+            elif tmp_command == "cfg_scale" and len(key_frame_parts) == 3 and is_img2img:
+                # Time (s) | cfg_scale | cfg_scale
+                df.loc[tmp_frame_no, ['cfg_scale']] = [float(key_frame_parts[2])]
             elif tmp_command == "noise" and len(key_frame_parts) == 3 and is_img2img:
                 # Time (s) | noise | noise_strength
                 df.loc[tmp_frame_no, ['noise']] = [float(key_frame_parts[2])]
@@ -497,6 +582,12 @@ class Script(scripts.Script):
                 # Time (s) | prompt | Positive Prompts | Negative Prompts
                 my_prompts.append((tmp_frame_no, key_frame_parts[2].strip().strip(",").strip(),
                                    key_frame_parts[3].strip().strip(",").strip()))
+            elif tmp_command == "prompt_vtt" and len(key_frame_parts) == 3:
+                # Time (s) | prompt_vtt | vtt_filepath
+                vtt_prompts = read_vtt(key_frame_parts[2].strip(), total_time, fps)
+                for vtt_time, vtt_pos, vtt_neg in vtt_prompts:
+                    my_prompts.append((vtt_time, vtt_pos.strip().strip(",").strip(),
+                                       vtt_neg.strip().strip(",").strip()))
             elif tmp_command == "template" and len(key_frame_parts) == 4:
                 # Time (s) | template | Positive Prompts | Negative Prompts
                 tmpl_pos = key_frame_parts[2].strip().strip(",").strip()
@@ -673,7 +764,7 @@ class Script(scripts.Script):
         state.job_count = frame_count
 
         if is_img2img:
-            initial_color_corrections = [processing.setup_color_correction(p.init_images[0])]
+            initial_color_corrections = old_setup_color_correction(p.init_images[0])
 
         x_shift_cumulative = 0
         y_shift_cumulative = 0
@@ -718,7 +809,7 @@ class Script(scripts.Script):
                         apply_colour_corrections = True
                         if frame_no > 0:
                             # Colour correction is set automatically above
-                            initial_color_corrections = [processing.setup_color_correction(p.init_images[0])]
+                            initial_color_corrections = old_setup_color_correction(p.init_images[0])
                     elif keyframe_command == "col_clear" and len(keyframe) == 1 and is_img2img:
                         # Time (s) | col_clear
                         apply_colour_corrections = False
@@ -763,6 +854,8 @@ class Script(scripts.Script):
             p.batch_size = 1
             p.do_not_save_grid = True
 
+            p.cfg_scale = float(df.loc[frame_no, ['cfg_scale']][0])
+
             init_img = None
             #
             # Get source frame
@@ -770,8 +863,6 @@ class Script(scripts.Script):
             # print("get source frame")
             if source == 'img2img' and is_img2img:
                 # Extra processing parameters
-                if apply_colour_corrections:
-                    p.color_corrections = initial_color_corrections
 
                 # TODO: Make this seed marching a diff img source
                 if seed_march:
@@ -787,6 +878,10 @@ class Script(scripts.Script):
                         init_img = p.init_images[0]
                     else:
                         init_img = processed.images[0]
+
+                # Apply colour corrections after we get the recycled init img.
+                if apply_colour_corrections:
+                    init_img = old_apply_color_correction(initial_color_corrections, init_img)
 
             elif source == 'video' and is_img2img:
                 source_cap.set(1, frame_no)
@@ -840,9 +935,20 @@ class Script(scripts.Script):
                     # print("Adding Noise!!")
                     init_img = addnoise(init_img, df.loc[frame_no, ['noise']][0])
 
-                # print("processing frame now.")
-                state.job = f"Major frame {frame_no} of {frame_count}"
-                p.init_images = [init_img]
+            #Experimental, blend this and last frame.
+            if frame_no > 0 and source != 'img2img':
+                if init_img.size != last_frame.size:
+                    tmpimage = init_img.resize(last_frame.size, Image.Resampling.LANCZOS)
+                    arr1 = np.array(tmpimage).astype('int16')
+                else:
+                    arr1 = np.array(init_img).astype('int16')
+                arr2 = np.array(last_frame).astype('int16')
+                init_img = Image.fromarray((arr1 + (arr2 - arr1) * 0.5).astype('uint8'), 'RGB')
+
+            # print("processing frame now.")
+            state.job = f"Major frame {frame_no} of {frame_count}"
+            p.init_images = [init_img]
+
 
             # Debug, print out source frame
             #init_img.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}_initial.png"))
