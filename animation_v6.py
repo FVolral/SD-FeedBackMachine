@@ -34,12 +34,12 @@ from PIL import Image, ImageFilter, ImageDraw, ImageFont
     Import SubModules
 """
 try:
-    scripts_path = os.path.join(os.getcwd(), 'scripts/sub_modules/__init__.py')
-    spec = importlib.util.spec_from_file_location("sub_modules", scripts_path)
-    sub_modules = importlib.util.module_from_spec(spec)
-    sys.modules["sub_modules"] = sub_modules
-    spec.loader.exec_module(sub_modules)
-    seam_carve = sub_modules.seam_carve
+    scripts_path = os.path.join(os.getcwd(), 'scripts/submodules/__init__.py')
+    spec = importlib.util.spec_from_file_location("submodules", scripts_path)
+    submodules = importlib.util.module_from_spec(spec)
+    sys.modules["submodules"] = submodules
+    spec.loader.exec_module(submodules)
+    seam_carve = submodules.seam_carve
 except:
     seam_carve = None
 
@@ -60,7 +60,7 @@ def convert_from_image_to_cv2(img: Image) -> np.ndarray:
 
 def content_aware_scale(img, dx, dy):
     if not seam_carve:
-        print("Warning: Could not load 'seam_carve' function from folder ./sub_modules/")
+        print("Warning: Could not load 'seam_carve' function from folder ./submodules/")
         return img
     cv2_img = convert_from_image_to_cv2(img)
     original_width = cv2_img.shape[1]
