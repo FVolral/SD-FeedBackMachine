@@ -190,11 +190,11 @@ def pasteprop(img, props, propfolder):
 
     for propname in props:
         # prop_name | prop filename | x pos | y pos | scale | rotation
-        propfilename = os.path.join(propfolder.strip(), str(props[propname][1]).strip())
-        x = int(props[propname][2])
-        y = int(props[propname][3])
-        scale = float(props[propname][4])
-        rotation = float(props[propname][5])
+        propfilename = os.path.join(propfolder.strip(), str(props[propname][2]).strip())
+        x = int(props[propname][3])
+        y = int(props[propname][4])
+        scale = float(props[propname][5])
+        rotation = float(props[propname][6])
 
         if not os.path.exists(propfilename):
             print("Prop: Cannot locate file: " + propfilename)
@@ -787,7 +787,7 @@ class Script(scripts.Script):
                 # Keyframes exist for this frame.
                 print(f"\r\nKeyframe at {frame_no}: {keyframes[frame_no]}\r\n")
 
-                for keyframe_group in keyframes[frame_no]:
+                for keyframe in keyframes[frame_no]:
                     keyframe_command = keyframe[0].lower().strip()
                     # Check the command, should be first item.
                     if keyframe_command == "seed" and len(keyframe) == 3:
@@ -966,8 +966,11 @@ class Script(scripts.Script):
             #
             # print("post process")
             post_processed_image = processed.images[0].copy()
-            if len(stamps) > 0:
-                post_processed_image = pasteprop(post_processed_image, stamps, propfolder)
+
+            if len(props) > 0:
+                post_processed_image = pasteprop(post_processed_image, props, propfolder)
+                props = {}
+
             if len(text_blocks) > 0:
                 post_processed_image = rendertext(post_processed_image, text_blocks)
 
