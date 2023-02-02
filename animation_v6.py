@@ -929,7 +929,6 @@ class Script(scripts.Script):
                 # Props
                 if len(props) > 0:
                     init_img = pasteprop(init_img, props, propfolder)
-                    props = {}
 
                 # Noise
 
