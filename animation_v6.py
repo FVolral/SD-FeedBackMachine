@@ -444,24 +444,24 @@ class Script(scripts.Script):
 
         i6 = gr.HTML(
             "<p>Supported Keyframes:<br>"
-            "time_s | source | video, images, img2img | path<br>"
-            "time_s | prompt | positive_prompts | negative_prompts<br>"
-            "time_s | template | positive_prompts | negative_prompts<br>"
-            "time_s | prompt_from_png | file_path<br>"
-            "time_s | prompt_vtt | vtt_filepath<br>"
-            "time_s | transform | zoom | x_shift | y_shift | rotation<br>"
-            "time_s | seed | new_seed_int<br>"
-            "time_s | noise | added_noise_strength<br>"            
-            "time_s | denoise | denoise_value<br>"
-            "time_s | cfg_scale | cfg_scale_value<br>"
-            "time_s | set_text | textblock_name | text_prompt | x | y | w | h | fore_color | back_color | font_name<br>"
-            "time_s | clear_text | textblock_name<br>"
-            "time_s | prop | prop_name | prop_filename | x pos | y pos | scale | rotation<br>"
-            "time_s | set_stamp | stamp_name | stamp_filename | x pos | y pos | scale | rotation<br>"
-            "time_s | clear_stamp | stamp_name<br>"
-            "time_s | col_set<br>"
-            "time_s | col_clear<br>"
-            "time_s | model | " + ", ".join(
+            "keyframe_number | source | video, images, img2img | path<br>"
+            "keyframe_number | prompt | positive_prompts | negative_prompts<br>"
+            "keyframe_number | template | positive_prompts | negative_prompts<br>"
+            "keyframe_number | prompt_from_png | file_path<br>"
+            "keyframe_number | prompt_vtt | vtt_filepath<br>"
+            "keyframe_number | transform | zoom | x_shift | y_shift | rotation<br>"
+            "keyframe_number | seed | new_seed_int<br>"
+            "keyframe_number | noise | added_noise_strength<br>"
+            "keyframe_number | denoise | denoise_value<br>"
+            "keyframe_number | cfg_scale | cfg_scale_value<br>"
+            "keyframe_number | set_text | textblock_name | text_prompt | x | y | w | h | fore_color | back_color | font_name<br>"
+            "keyframe_number | clear_text | textblock_name<br>"
+            "keyframe_number | prop | prop_name | prop_filename | x pos | y pos | scale | rotation<br>"
+            "keyframe_number | set_stamp | stamp_name | stamp_filename | x pos | y pos | scale | rotation<br>"
+            "keyframe_number | clear_stamp | stamp_name<br>"
+            "keyframe_number | col_set<br>"
+            "keyframe_number | col_clear<br>"
+            "keyframe_number | model | " + ", ".join(
                 sorted([x.model_name for x in sd_models.checkpoints_list.values()])) + "</p>")
 
         chkimg2img = gr.Checkbox(label="img2img_mode", value=is_img2img, visible=False)
@@ -515,18 +515,20 @@ class Script(scripts.Script):
         p.do_not_save_grid = True
 
         # Pandas key-framing, hopefully use this to interpolate a bunch of values.
-        variables = {'pos1': np.nan,
-                     'neg1': np.nan,
-                     'pos2': np.nan,
-                     'neg2': np.nan,
-                     'prompt': np.nan,
-                     'denoise': np.nan,
-                     'noise': np.nan,
-                     'x_shift': np.nan,
-                     'y_shift': np.nan,
-                     'zoom': np.nan,
-                     'rotation': np.nan,
-                     'cfg_scale': np.nan}
+        variables = {
+            'pos1': np.nan,
+            'neg1': np.nan,
+            'pos2': np.nan,
+            'neg2': np.nan,
+            'prompt': np.nan,
+            'denoise': np.nan,
+            'noise': np.nan,
+            'x_shift': np.nan,
+            'y_shift': np.nan,
+            'zoom': np.nan,
+            'rotation': np.nan,
+            'cfg_scale': np.nan
+        }
 
         df = pd.DataFrame(variables, index=range(frame_count + 1))
         # Preload the dataframe with initial values.
@@ -552,7 +554,7 @@ class Script(scripts.Script):
             key_frame_parts = key_frame.split("|")
             if len(key_frame_parts) < 2:
                 continue
-            tmp_frame_no = int(float(key_frame_parts[0]) * fps)
+            tmp_frame_no = int(key_frame_parts[0])
             tmp_command = key_frame_parts[1].lower().strip()
 
             if tmp_frame_no not in keyframes:
