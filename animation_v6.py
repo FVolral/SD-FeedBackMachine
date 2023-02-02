@@ -958,6 +958,12 @@ class Script(scripts.Script):
             # Process source frame into destination frame
             #
 
+            # Force seed
+            p.all_seeds = [424242]
+            p.all_subseeds = [424242]
+            p.seed = 424242
+            p.subseed = 424242
+
             processed = processing.process_images(p)
 
             #
