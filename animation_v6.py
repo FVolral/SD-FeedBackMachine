@@ -787,7 +787,7 @@ class Script(scripts.Script):
                 # Keyframes exist for this frame.
                 print(f"\r\nKeyframe at {frame_no}: {keyframes[frame_no]}\r\n")
 
-                for keyframe in keyframes[frame_no]:
+                for keyframe_group in keyframes[frame_no]:
                     keyframe_command = keyframe[0].lower().strip()
                     # Check the command, should be first item.
                     if keyframe_command == "seed" and len(keyframe) == 3:
@@ -816,7 +816,7 @@ class Script(scripts.Script):
                         # Time (s) | col_clear
                         apply_colour_corrections = False
 
-                    elif keyframe_command == "prop" and len(keyframe) == 6 and is_img2img:
+                    elif keyframe_command == "prop" and len(keyframe) == 7 and is_img2img:
                         # Time (s) | prop | prop_filename | x pos | y pos | scale | rotation
                         # bit of a hack, no prop name is supplied, but same function is used to draw.
                         # so the command is passed in place of prop name, which will be ignored anyway.
