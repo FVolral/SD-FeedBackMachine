@@ -933,8 +933,8 @@ class Script(scripts.Script):
                 y_shift_cumulative = y_shift_cumulative - int(y_shift_cumulative)
 
                 # Props
-                if len(props) > 0:
-                    init_img = pasteprop(init_img, props, propfolder)
+                # if len(props) > 0:
+                #     init_img = pasteprop(init_img, props, propfolder)
 
                 # Noise
 
