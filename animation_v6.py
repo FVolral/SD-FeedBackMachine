@@ -926,15 +926,15 @@ class Script(scripts.Script):
 
                 init_img = zoom_at2(init_img, rot_per_frame, int(x_shift_cumulative), int(y_shift_cumulative),
                                     zoom_factor)
-                init_img = content_aware_scale(init_img, cas_dx, cas_dy)
+                # Props
+                if len(props) > 0:
+                    init_img = pasteprop(init_img, props, propfolder)
+
+                # init_img = content_aware_scale(init_img, cas_dx, cas_dy)
 
                 # Subtract the integer portion we just shifted.
                 x_shift_cumulative = x_shift_cumulative - int(x_shift_cumulative)
                 y_shift_cumulative = y_shift_cumulative - int(y_shift_cumulative)
-
-                # Props
-                # if len(props) > 0:
-                #     init_img = pasteprop(init_img, props, propfolder)
 
                 # Noise
 
@@ -984,6 +984,9 @@ class Script(scripts.Script):
 
             if len(text_blocks) > 0:
                 post_processed_image = rendertext(post_processed_image, text_blocks)
+
+            # Do content_aware_scale
+            post_processed_image = content_aware_scale(post_processed_image, cas_dx, cas_dy)
 
             #
             # Save frame
