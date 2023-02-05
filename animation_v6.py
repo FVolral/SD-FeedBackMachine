@@ -185,7 +185,7 @@ def read_vtt(filepath, total_time, fps):
     return vttlist
 
 
-def pasteprop(img, props, propfolder):
+def pasteprop(img, props, propfolder, postProcess):
     img2 = img.convert('RGBA')
 
     for propname in props:
@@ -195,8 +195,12 @@ def pasteprop(img, props, propfolder):
         y = int(props[propname][4])
         scale = float(props[propname][5])
         rotation = float(props[propname][6])
-        opacity = float(props[propname][7])
-
+        opacity_a = float(props[propname][7])
+        opacity_b = float(props[propname][8])
+        if not postProcess:
+            opacity = opacity_a
+        else:
+            opacity = opacity_b
         if not os.path.exists(propfilename):
             print("Prop: Cannot locate file: " + propfilename)
             return img
@@ -822,8 +826,8 @@ class Script(scripts.Script):
                         # Time (s) | col_clear
                         apply_colour_corrections = False
 
-                    elif keyframe_command == "prop" and len(keyframe) == 8 and is_img2img:
-                        # Time (s) | prop | prop_filename | x pos | y pos | scale | rotation | opacity
+                    elif keyframe_command == "prop" and len(keyframe) == 9 and is_img2img:
+                        # Time (s) | prop | prop_filename | x pos | y pos | scale | rotation | opacity (before) | opacity (after)
                         # bit of a hack, no prop name is supplied, but same function is used to draw.
                         # so the command is passed in place of prop name, which will be ignored anyway.
                         props[len(props)] = keyframe
@@ -928,7 +932,7 @@ class Script(scripts.Script):
                                     zoom_factor)
                 # Props
                 if len(props) > 0:
-                    init_img = pasteprop(init_img, props, propfolder)
+                    init_img = pasteprop(init_img, props, propfolder, False)
 
                 # init_img = content_aware_scale(init_img, cas_dx, cas_dy)
 
@@ -979,7 +983,7 @@ class Script(scripts.Script):
             post_processed_image = processed.images[0].copy()
 
             if len(props) > 0:
-                post_processed_image = pasteprop(post_processed_image, props, propfolder)
+                post_processed_image = pasteprop(post_processed_image, props, propfolder, True)
                 props = {}
 
             if len(text_blocks) > 0:
