@@ -195,6 +195,7 @@ def pasteprop(img, props, propfolder):
         y = int(props[propname][4])
         scale = float(props[propname][5])
         rotation = float(props[propname][6])
+        opacity = float(props[propname][7])
 
         if not os.path.exists(propfilename):
             print("Prop: Cannot locate file: " + propfilename)
@@ -205,7 +206,12 @@ def pasteprop(img, props, propfolder):
         prop2 = prop.resize((int(w2 * scale), int(h2 * scale)), Image.Resampling.LANCZOS).rotate(rotation, expand=True)
         w3, h3 = prop2.size
 
+        r, g, b, a = prop2.split()
+        a = a.point(lambda i: i * opacity)
+        prop2 = Image.merge('RGBA', (r, g, b, a))
+
         tmplayer = Image.new('RGBA', img.size, (0, 0, 0, 0))
+
         tmplayer.paste(prop2, (int(x - w3 / 2), int(y - h3 / 2)))
         img2 = Image.alpha_composite(img2, tmplayer)
 
@@ -816,8 +822,8 @@ class Script(scripts.Script):
                         # Time (s) | col_clear
                         apply_colour_corrections = False
 
-                    elif keyframe_command == "prop" and len(keyframe) == 7 and is_img2img:
-                        # Time (s) | prop | prop_filename | x pos | y pos | scale | rotation
+                    elif keyframe_command == "prop" and len(keyframe) == 8 and is_img2img:
+                        # Time (s) | prop | prop_filename | x pos | y pos | scale | rotation | opacity
                         # bit of a hack, no prop name is supplied, but same function is used to draw.
                         # so the command is passed in place of prop name, which will be ignored anyway.
                         props[len(props)] = keyframe
