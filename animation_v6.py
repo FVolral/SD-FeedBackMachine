@@ -848,10 +848,10 @@ class Script(scripts.Script):
                             text_blocks.pop(keyframe[1].strip())
 
             # print("set processing options")
-            p.prompt = str(df.loc[frame_no, ['pos_prompt']][0])
-            # print(p.prompt)
-            p.negative_prompt = str(df.loc[frame_no, ['neg_prompt']][0])
-            # print(p.negative_prompt)
+            new_prompt = [ prompt for prompt in my_prompts if prompt[0] == frame_no]
+            if new_prompt:
+              p.prompt = new_prompt[0][1]
+              p.negative_prompt = new_prompt[0][2]
 
             p.seed = int(df.loc[frame_no, ['seed_start']][0])
             p.subseed = None \
