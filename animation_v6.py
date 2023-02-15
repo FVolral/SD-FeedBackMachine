@@ -967,7 +967,7 @@ class Script(scripts.Script):
             """
             if p.image_mask and get_mask:
                 init_img_w, init_img_h = init_img.size
-                image_mask = get_mask(frame_no, init_img_w, init_img_h, 'tunnel', 3)
+                p.image_mask = get_mask(frame_no, init_img_w, init_img_h, 'tunnel', 3)
 
                 #image_mask = resize_from(image_mask, init_img)
                 #image_mask = resize_from(image_mask, post_processed_image)
@@ -980,7 +980,7 @@ class Script(scripts.Script):
             # Pre-process source frame
             #
             # print("pre process frame")
-            if init_img is not None:
+            if post_processed_image is not None:
                 # Update transform details
                 x_shift_per_frame = df.loc[frame_no, ['x_shift']][0]
                 y_shift_per_frame = df.loc[frame_no, ['y_shift']][0]
@@ -995,13 +995,13 @@ class Script(scripts.Script):
                 x_shift_cumulative = x_shift_cumulative + x_shift_per_frame
                 y_shift_cumulative = y_shift_cumulative + y_shift_per_frame
 
-                init_img = zoom_at2(init_img, rot_per_frame, int(x_shift_cumulative), int(y_shift_cumulative),
+                post_processed_image = zoom_at2(post_processed_image, rot_per_frame, int(x_shift_cumulative), int(y_shift_cumulative),
                                     zoom_factor)
                 # Props
                 if len(props) > 0:
-                    init_img = pasteprop(init_img, props, propfolder, False)
+                    post_processed_image = pasteprop(post_processed_image, props, propfolder, False)
 
-                # init_img = content_aware_scale(init_img, cas_dx, cas_dy)
+                # post_processed_image = content_aware_scale(post_processed_image, cas_dx, cas_dy)
 
                 # Subtract the integer portion we just shifted.
                 x_shift_cumulative = x_shift_cumulative - int(x_shift_cumulative)
@@ -1011,7 +1011,7 @@ class Script(scripts.Script):
 
                 if add_noise and is_img2img:
                     # print("Adding Noise!!")
-                    init_img = addnoise(init_img, df.loc[frame_no, ['noise']][0])
+                    post_processed_image = addnoise(post_processed_image, df.loc[frame_no, ['noise']][0])
 
             #
             # For inpainting

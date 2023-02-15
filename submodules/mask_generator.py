@@ -3,7 +3,6 @@
 """
 import cairo
 import numpy as np
-import opensimplex
 from PIL import Image, ImageFilter, ImageOps
 
 try:
