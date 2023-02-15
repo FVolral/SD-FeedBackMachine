@@ -1,5 +1,8 @@
 import numpy as np
-from utils import convert_from_np_to_image
+try:
+    from .utils import convert_from_np_to_image
+except:
+    from utils import convert_from_np_to_image
 from PIL import Image
 
 def perlin(x, y, seed=0):
