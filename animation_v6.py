@@ -40,9 +40,10 @@ try:
     sys.modules["submodules"] = submodules
     spec.loader.exec_module(submodules)
     seam_carve = submodules.seam_carve
+    get_mask = submodules.get_mask
 except:
     seam_carve = None
-
+    get_mask = None
 """
 cv2 to Image et vice versa
 """
@@ -183,6 +184,27 @@ def read_vtt(filepath, total_time, fps):
                     tmp_vtt_frame_time = 1e99
 
     return vttlist
+
+def resize_from(img_to_resize, img_from):
+    img_from_w, img_from_h = img_from.size
+    img_to_resize_w, img_to_resize_h = img_to_resize.size
+    if img_from_w != img_to_resize_w or img_from_h != img_to_resize_h:
+        img_to_resize = img_to_resize.resize((img_from_w, img_from_h), Image.Resampling.LANCZOS)
+    return img_to_resize
+
+def add_alpha_layer(rgb_img, alpha_layer):
+    alpha_layer = resize_from(alpha_layer, rgb_img)
+    r, g, b = rgb_img.split()
+    return Image.merge('RGBA', (r, g, b, alpha_layer))
+
+def paste_img(front, back):
+    back = back.convert('RGBA')
+    tmplayer = Image.new('RGBA', back.size, (0, 0, 0, 0))
+    tmplayer.paste(front, (0, 0))
+
+    img2 = Image.alpha_composite(back, tmplayer)
+    return img2.convert('RGB')
+
 
 
 def pasteprop(img, props, propfolder, postProcess):
@@ -892,8 +914,8 @@ class Script(scripts.Script):
                         init_img = processed.images[0]
 
                 # Apply colour corrections after we get the recycled init img.
-                if apply_colour_corrections:
-                    init_img = old_apply_color_correction(initial_color_corrections, init_img)
+                # if apply_colour_corrections:
+                #     init_img = old_apply_color_correction(initial_color_corrections, init_img)
 
             elif source == 'video' and is_img2img:
                 source_cap.set(1, frame_no)
@@ -908,6 +930,51 @@ class Script(scripts.Script):
                     init_img = Image.open(source_cap[frame_no])
                 if init_img.mode != 'RGB':
                     init_img = init_img.convert('RGB')
+
+
+            # Experimental, blend this and last frame.
+            if frame_no > 0 and source != 'img2img':
+                if init_img.size != last_frame.size:
+                    tmpimage = init_img.resize(last_frame.size, Image.Resampling.LANCZOS)
+                    arr1 = np.array(tmpimage).astype('int16')
+                else:
+                    arr1 = np.array(init_img).astype('int16')
+                arr2 = np.array(last_frame).astype('int16')
+                init_img = Image.fromarray((arr1 + (arr2 - arr1) * 0.5).astype('uint8'), 'RGB')
+
+            # print("processing frame now.")
+            state.job = f"Major frame {frame_no} of {frame_count}"
+            p.init_images = [init_img]
+
+
+            # Debug, print out source frame
+            #init_img.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}_initial.png"))
+
+            #
+            # Process source frame into destination frame
+            #
+
+            # Force seed
+            p.all_seeds = [424242]
+            p.all_subseeds = [424242]
+            p.seed = 424242
+            p.subseed = 424242
+
+            processed = processing.process_images(p)
+
+            """
+                XP: generate image mask from function
+            """
+            if p.image_mask and get_mask:
+                init_img_w, init_img_h = init_img.size
+                image_mask = get_mask(frame_no, init_img_w, init_img_h, 'tunnel', 3)
+
+                #image_mask = resize_from(image_mask, init_img)
+                #image_mask = resize_from(image_mask, post_processed_image)
+            #
+            # Post-process destination frame
+            #
+            post_processed_image = processed.images[0].copy()
 
             #
             # Pre-process source frame
@@ -946,41 +1013,22 @@ class Script(scripts.Script):
                     # print("Adding Noise!!")
                     init_img = addnoise(init_img, df.loc[frame_no, ['noise']][0])
 
-            #Experimental, blend this and last frame.
-            if frame_no > 0 and source != 'img2img':
-                if init_img.size != last_frame.size:
-                    tmpimage = init_img.resize(last_frame.size, Image.Resampling.LANCZOS)
-                    arr1 = np.array(tmpimage).astype('int16')
-                else:
-                    arr1 = np.array(init_img).astype('int16')
-                arr2 = np.array(last_frame).astype('int16')
-                init_img = Image.fromarray((arr1 + (arr2 - arr1) * 0.5).astype('uint8'), 'RGB')
-
-            # print("processing frame now.")
-            state.job = f"Major frame {frame_no} of {frame_count}"
-            p.init_images = [init_img]
-
-
-            # Debug, print out source frame
-            #init_img.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}_initial.png"))
-
             #
-            # Process source frame into destination frame
+            # For inpainting
             #
+            if p.image_mask:
+                # image mask has been provided so we know that we are in a inpainting mode
+                blur_filter = ImageFilter.GaussianBlur(p.mask_blur)
+                image_mask = p.image_mask.filter(blur_filter)
+                image_mask = resize_from(image_mask, post_processed_image)
+                init_img = resize_from(init_img, post_processed_image)
 
-            # Force seed
-            p.all_seeds = [424242]
-            p.all_subseeds = [424242]
-            p.seed = 424242
-            p.subseed = 424242
+                post_processed_image_with_alpha_mask = add_alpha_layer(post_processed_image, image_mask)
+                post_processed_image = paste_img(
+                    post_processed_image_with_alpha_mask,
+                    init_img
+                )
 
-            processed = processing.process_images(p)
-
-            #
-            # Post-process destination frame
-            #
-            # print("post process")
-            post_processed_image = processed.images[0].copy()
 
             if len(props) > 0:
                 post_processed_image = pasteprop(post_processed_image, props, propfolder, True)
@@ -990,7 +1038,8 @@ class Script(scripts.Script):
                 post_processed_image = rendertext(post_processed_image, text_blocks)
 
             # Do content_aware_scale
-            post_processed_image = content_aware_scale(post_processed_image, cas_dx, cas_dy)
+            if cas_dx != 0 or cas_dy != 0:
+                post_processed_image = content_aware_scale(post_processed_image, cas_dx, cas_dy)
 
             #
             # Save frame
