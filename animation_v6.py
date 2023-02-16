@@ -468,7 +468,7 @@ class Script(scripts.Script):
                                                maximum=100, step=1, value=0)
             with gr.Column():
                 i3c = gr.HTML("<p style=\"margin-bottom:0.85em\">CFG Scale</p>")
-                cfg_scale = gr.Slider(label="CFG Scale", minimum=1, maximum=30, step=1, value=1)
+                cfg_scale = gr.Slider(label="CFG Scale", minimum=1, maximum=30, step=1, value=7)
 
         i4 = gr.HTML("<p style=\"margin-bottom:0.75em\">Prompt Template, applied to each keyframe below</p>")
         tmpl_pos = gr.Textbox(label="Positive Prompts", lines=1, value="")
@@ -972,7 +972,7 @@ class Script(scripts.Script):
             """
                 XP: generate image mask from function
             """
-            if p.image_mask and get_mask:
+            if hasattr(p, 'image_mask') and p.image_mask and get_mask:
                 init_img_w, init_img_h = init_img.size
                 p.image_mask = get_mask(frame_no, init_img_w, init_img_h, 'tunnel', 3)
 
@@ -1023,7 +1023,7 @@ class Script(scripts.Script):
             #
             # For inpainting
             #
-            if p.image_mask:
+            if hasattr(p, 'image_mask') and p.image_mask:
                 # image mask has been provided so we know that we are in a inpainting mode
                 blur_filter = ImageFilter.GaussianBlur(p.mask_blur)
                 image_mask = p.image_mask.filter(blur_filter)
