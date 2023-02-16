@@ -466,6 +466,9 @@ class Script(scripts.Script):
                                                maximum=100, step=1, value=0)
                 cas_dy = gr.Slider(label="DY", minimum=-100,
                                                maximum=100, step=1, value=0)
+            with gr.Column():
+                i3c = gr.HTML("<p style=\"margin-bottom:0.85em\">CFG Scale</p>")
+                cfg_scale = gr.Slider(label="CFG Scale", minimum=1, maximum=30, step=1, value=1)
 
         i4 = gr.HTML("<p style=\"margin-bottom:0.75em\">Prompt Template, applied to each keyframe below</p>")
         tmpl_pos = gr.Textbox(label="Positive Prompts", lines=1, value="")
@@ -499,12 +502,12 @@ class Script(scripts.Script):
         chkimg2img = gr.Checkbox(label="img2img_mode", value=is_img2img, visible=False)
 
         key_frames = gr.Textbox(label="Keyframes:", lines=5, value="")
-        return [i1, i2, i3, i3b, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg,
-                key_frames, denoising_strength, x_shift, y_shift, rotation, cas_dx, cas_dy, propfolder, seed_march, smoothing,
+        return [i1, i2, i3, i3b, i3c, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg,
+                key_frames, denoising_strength, x_shift, y_shift, rotation, cas_dx, cas_dy, cfg_scale, propfolder, seed_march, smoothing,
                 add_noise, noise_strength, chkimg2img]
 
-    def run(self, p, i1, i2, i3, i3b, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos,
-            tmpl_neg, key_frames, denoising_strength, x_shift, y_shift, rotation, cas_dx, cas_dy, propfolder, seed_march, smoothing,
+    def run(self, p, i1, i2, i3, i3b, i3c, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos,
+            tmpl_neg, key_frames, denoising_strength, x_shift, y_shift, rotation, cas_dx, cas_dy, cfg_scale, propfolder, seed_march, smoothing,
             add_noise, noise_strength, is_img2img):
 
         print(os.getcwd())
@@ -564,15 +567,17 @@ class Script(scripts.Script):
 
         df = pd.DataFrame(variables, index=range(frame_count + 1))
         # Preload the dataframe with initial values.
-        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'cas_dx', 'cas_dy', 'noise']] = [denoising_strength,
-
-                                                                            x_shift / fps,
-                                                                            y_shift / fps,
-                                                                            zoom_factor ** (1.0 / fps),
-                                                                            rotation / fps,
-                                                                            cas_dx,
-                                                                            cas_dy,
-                                                                            noise_strength]
+        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'cas_dx', 'cas_dy', 'noise', 'cfg_scale']] = [
+            denoising_strength,
+            x_shift / fps,
+            y_shift / fps,
+            zoom_factor ** (1.0 / fps),
+            rotation / fps,
+            cas_dx,
+            cas_dy,
+            noise_strength,
+            cfg_scale
+        ]
 
 
         keyframes = {}
@@ -888,7 +893,9 @@ class Script(scripts.Script):
             p.batch_size = 1
             p.do_not_save_grid = True
 
-            p.cfg_scale = float(df.loc[frame_no, ['cfg_scale']][0])
+            varying_cgf_scale = float(df.loc[frame_no, ['cfg_scale']][0])
+            if varying_cgf_scale:
+                p.cfg_scale = varying_cgf_scale
 
             init_img = None
             #
