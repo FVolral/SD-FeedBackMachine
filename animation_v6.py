@@ -472,7 +472,7 @@ class Script(scripts.Script):
                 cfg_scale = gr.Slider(label="CFG Scale", minimum=1, maximum=30, step=1, value=7)
 
             with gr.Column():
-                i3d = gr.HTML("<p style=\"margin-bottom:0.85em\">In Paiting params</p>")
+                i3d = gr.HTML("<h1 style=\"margin-bottom:0.85em\">In Paiting params</h1>")
                 inpainting_mode = gr.Dropdown(label='Inpainting Mode', elem_id=f"test_sampling", choices=mode_mask, value=None, type="index")
 
 
@@ -510,11 +510,11 @@ class Script(scripts.Script):
         key_frames = gr.Textbox(label="Keyframes:", lines=5, value="")
         return [i1, i2, i3, i3b, i3c, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg,
                 key_frames, denoising_strength, x_shift, y_shift, rotation, cas_dx, cas_dy, cfg_scale, propfolder, seed_march, smoothing,
-                add_noise, noise_strength, chkimg2img]
+                add_noise, noise_strength, inpainting_mode, chkimg2img]
 
     def run(self, p, i1, i2, i3, i3b, i3c, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos,
             tmpl_neg, key_frames, denoising_strength, x_shift, y_shift, rotation, cas_dx, cas_dy, cfg_scale, propfolder, seed_march, smoothing,
-            add_noise, noise_strength, is_img2img):
+            add_noise, noise_strength, inpainting_mode, is_img2img):
 
         print(os.getcwd())
 
@@ -568,12 +568,13 @@ class Script(scripts.Script):
             'y_shift': np.nan,
             'zoom': np.nan,
             'rotation': np.nan,
-            'cfg_scale': np.nan
+            'cfg_scale': np.nan,
+            'inpainting_mode': np.nan
         }
 
         df = pd.DataFrame(variables, index=range(frame_count + 1))
         # Preload the dataframe with initial values.
-        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'cas_dx', 'cas_dy', 'noise', 'cfg_scale']] = [
+        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'cas_dx', 'cas_dy', 'noise', 'cfg_scale', 'inpainting_mode']] = [
             denoising_strength,
             x_shift / fps,
             y_shift / fps,
@@ -582,7 +583,8 @@ class Script(scripts.Script):
             cas_dx,
             cas_dy,
             noise_strength,
-            cfg_scale
+            cfg_scale,
+            inpainting_mode
         ]
 
 
@@ -674,10 +676,14 @@ class Script(scripts.Script):
                         print(f'Found {len(source_cap)} images in {tmp_source_path}')
                     else:
                         print(f'No images found, reverting back to img2img: {tmp_source_path}')
-            elif keyframe_command == "gen_mask":
+            elif tmp_command == "gen_mask":
                 # keyframe num | mode | json_param
-                tmp_mode = key_frame_parts[2].lower().strip()
-                json_param_mode = key_frame_parts[3].lower().strip()
+                tmp_gen_mask_mode = key_frame_parts[2].lower().strip()
+                tmp_json_param_mode = key_frame_parts[3].lower().strip()
+                df.loc[tmp_frame_no, ['tmp_gen_mask_mode', 'tmp_json_param_mode']] = [
+                    tmp_gen_mask_mode,
+                    tmp_json_param_mode
+                ]
 
         # Sort list of prompts, and then populate the dataframe in a alternating fashion.
         # need to do this to ensure the prompts flow onto each other correctly.
