@@ -41,6 +41,7 @@ try:
     spec.loader.exec_module(submodules)
     seam_carve = submodules.seam_carve
     get_mask = submodules.get_mask
+    mode_mask = submodules.mode_mask
 except:
     seam_carve = None
     get_mask = None
@@ -470,6 +471,11 @@ class Script(scripts.Script):
                 i3c = gr.HTML("<p style=\"margin-bottom:0.85em\">CFG Scale</p>")
                 cfg_scale = gr.Slider(label="CFG Scale", minimum=1, maximum=30, step=1, value=7)
 
+            with gr.Column():
+                i3d = gr.HTML("<p style=\"margin-bottom:0.85em\">In Paiting params</p>")
+                inpainting_mode = gr.Dropdown(label='Inpainting Mode', elem_id=f"test_sampling", choices=mode_mask, value=None, type="index")
+
+
         i4 = gr.HTML("<p style=\"margin-bottom:0.75em\">Prompt Template, applied to each keyframe below</p>")
         tmpl_pos = gr.Textbox(label="Positive Prompts", lines=1, value="")
         tmpl_neg = gr.Textbox(label="Negative Prompts", lines=1, value="")
@@ -600,11 +606,12 @@ class Script(scripts.Script):
 
             if tmp_command == "transform" and len(key_frame_parts) == 6 and is_img2img:
                 # Time (s) | transform  | Zoom (/s) | X Shift (pix/s) | Y shift (pix/s) | Rotation (deg/s)
-                df.loc[tmp_frame_no, ['x_shift', 'y_shift', 'zoom', 'rotation']] = [float(key_frame_parts[3]) / fps,
-                                                                                    float(key_frame_parts[4]) / fps,
-                                                                                    float(key_frame_parts[2]) ** (
-                                                                                            1.0 / fps),
-                                                                                    float(key_frame_parts[5]) / fps]
+                df.loc[tmp_frame_no, ['x_shift', 'y_shift', 'zoom', 'rotation']] = [
+                    float(key_frame_parts[3]) / fps,
+                    float(key_frame_parts[4]) / fps,
+                    float(key_frame_parts[2]) ** (1.0 / fps),
+                    float(key_frame_parts[5]) / fps
+                ]
             elif tmp_command == "denoise" and len(key_frame_parts) == 3 and is_img2img:
                 # Time (s) | denoise | denoise
                 df.loc[tmp_frame_no, ['denoise']] = [float(key_frame_parts[2])]
@@ -667,6 +674,10 @@ class Script(scripts.Script):
                         print(f'Found {len(source_cap)} images in {tmp_source_path}')
                     else:
                         print(f'No images found, reverting back to img2img: {tmp_source_path}')
+            elif keyframe_command == "gen_mask":
+                # keyframe num | mode | json_param
+                tmp_mode = key_frame_parts[2].lower().strip()
+                json_param_mode = key_frame_parts[3].lower().strip()
 
         # Sort list of prompts, and then populate the dataframe in a alternating fashion.
         # need to do this to ensure the prompts flow onto each other correctly.
@@ -828,51 +839,55 @@ class Script(scripts.Script):
                     keyframe_command = keyframe[0].lower().strip()
                     # Check the command, should be first item.
                     if keyframe_command == "seed" and len(keyframe) == 3:
-                        # Time (s) | seed | seed
+                        # keyframe num | seed | seed
                         p.seed = int(keyframe[1])
                         processing.fix_seed(p)
                     elif keyframe_command == "subseed" and len(keyframe) == 3:
-                        # Time (s) | subseed | subseed
+                        # keyframe num | subseed | subseed
                         p.subseed = int(keyframe[1])
                         processing.fix_seed(p)
 
                     elif keyframe_command == "model" and len(keyframe) == 2:
-                        # Time (s) | model    | model name
+                        # keyframe num | model    | model name
                         info = sd_models.get_closet_checkpoint_match(keyframe[1].strip() + ".ckpt")
                         if info is None:
                             raise RuntimeError(f"Unknown checkpoint: {keyframe[1]}")
                         sd_models.reload_model_weights(shared.sd_model, info)
 
                     elif keyframe_command == "col_set" and len(keyframe) == 1 and is_img2img:
-                        # Time (s) | col_set
+                        # keyframe num | col_set
                         apply_colour_corrections = True
                         if frame_no > 0:
                             # Colour correction is set automatically above
                             initial_color_corrections = old_setup_color_correction(p.init_images[0])
                     elif keyframe_command == "col_clear" and len(keyframe) == 1 and is_img2img:
-                        # Time (s) | col_clear
+                        # keyframe num | col_clear
                         apply_colour_corrections = False
 
                     elif keyframe_command == "prop" and len(keyframe) == 9 and is_img2img:
-                        # Time (s) | prop | prop_filename | x pos | y pos | scale | rotation | opacity (before) | opacity (after)
+                        # keyframe num | prop | prop_filename | x pos | y pos | scale | rotation | opacity (before) | opacity (after)
                         # bit of a hack, no prop name is supplied, but same function is used to draw.
                         # so the command is passed in place of prop name, which will be ignored anyway.
                         props[len(props)] = keyframe
                     elif keyframe_command == "set_stamp" and len(keyframe) == 7:
-                        # Time (s) | set_stamp | stamp_name | stamp_filename | x pos | y pos | scale | rotation
+                        # keyframe num | set_stamp | stamp_name | stamp_filename | x pos | y pos | scale | rotation
                         stamps[keyframe[1].strip()] = keyframe[1:]
                     elif keyframe_command == "clear_stamp" and len(keyframe) == 2:
-                        # Time (s) | clear_stamp | stamp_name
+                        # keyframe num | clear_stamp | stamp_name
                         if keyframe[1].strip() in stamps:
                             stamps.pop(keyframe[1].strip())
 
                     elif keyframe_command == "set_text" and len(keyframe) == 10:
-                        # time_s | set_text | name | text_prompt | x | y | w | h | fore_color | back_color | font_name
+                        # keyframe num | set_text | name | text_prompt | x | y | w | h | fore_color | back_color | font_name
                         text_blocks[keyframe[1].strip()] = keyframe[1:]
                     elif keyframe_command == "clear_text" and len(keyframe) == 2:
-                        # Time (s) | clear_text | textblock_name
+                        # keyframe num | clear_text | textblock_name
                         if keyframe[1].strip() in text_blocks:
                             text_blocks.pop(keyframe[1].strip())
+                    elif keyframe_command == "gen_mask":
+                        # keyframe num | mode | json_param
+                        import pdb; pdb.set_trace()
+                        pass
 
             # print("set processing options")
             new_prompt = [ prompt for prompt in my_prompts if prompt[0] == frame_no]
