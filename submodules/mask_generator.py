@@ -17,7 +17,7 @@ except:
 cairo_mode = ['croix', 'fft_data', 'tunnel', 'tunnel_2']
 noise_mode = ['perlin']
 
-mode_mask = cairo_mode + noise_mode
+mask_modes = cairo_mode + noise_mode
 
 
 def white(ctx):

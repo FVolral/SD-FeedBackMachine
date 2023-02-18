@@ -41,7 +41,7 @@ try:
     spec.loader.exec_module(submodules)
     seam_carve = submodules.seam_carve
     get_mask = submodules.get_mask
-    mode_mask = submodules.mode_mask
+    mask_modes = submodules.mask_modes
 except:
     seam_carve = None
     get_mask = None
@@ -473,7 +473,7 @@ class Script(scripts.Script):
 
             with gr.Column():
                 i3d = gr.HTML("<h1 style=\"margin-bottom:0.85em\">In Paiting params</h1>")
-                inpainting_mode_idx = gr.Dropdown(label='Inpainting Mode', elem_id=f"test_sampling", choices=mode_mask, value=None, type="index")
+                inpainting_mode_idx = gr.Dropdown(label='Inpainting Mode', elem_id=f"test_sampling", choices=mask_modes, value=None, type="index")
 
 
         i4 = gr.HTML("<p style=\"margin-bottom:0.75em\">Prompt Template, applied to each keyframe below</p>")
@@ -995,7 +995,7 @@ class Script(scripts.Script):
             """
             if hasattr(p, 'image_mask') and p.image_mask and get_mask:
                 init_img_w, init_img_h = init_img.size
-                p.image_mask = get_mask(frame_no, init_img_w, init_img_h, inpainting_mode[inpainting_mode_idx], p.mask_blur)
+                p.image_mask = get_mask(frame_no, init_img_w, init_img_h, mask_modes[inpainting_mode_idx], p.mask_blur)
 
                 #image_mask = resize_from(image_mask, init_img)
                 #image_mask = resize_from(image_mask, post_processed_image)
