@@ -13,6 +13,13 @@ except:
     from utils import normalize, convert_from_np_to_image
     from perlin_function import perlin, lerp, fade, gradient, gen_perlin_noise
 
+
+cairo_mode = ['croix', 'fft_data', 'tunnel', 'tunnel_2']
+noise_mode = ['perlin']
+
+mode_mask = cairo_mode + noise_mode
+
+
 def white(ctx):
     ctx.set_source_rgb(1.0, 1.0, 1.0)
 
@@ -50,10 +57,24 @@ def gen_mask(ctx, frame_no, w, h, mode):
 
     if mode == 'fft_data':
         pass
-    elif mode == 'test':
-        ctx.set_source_rgba(1.0, 0.0, 0.0, 1.0) # explicitly draw white background
-        ctx.rectangle(0, 0, w/2, h/2)
-        ctx.fill()
+    elif mode == 'croix':
+        ctx.set_source_rgba(1.0, 1.0, 1.0, 1.0)
+        ctx.set_line_cap(cairo.LINE_CAP_SQUARE)
+        line_width = w / 10
+        ctx.set_line_width(line_width)
+        ctx.move_to(0, 0)
+        ctx.line_to(0, h)
+        ctx.line_to(w, h)
+        ctx.line_to(w, 0)
+        ctx.close_path()
+        ctx.stroke()
+        ctx.move_to(0, 0)
+        ctx.line_to(w, h)
+        ctx.stroke()
+        ctx.move_to(w, 0)
+        ctx.line_to(0, h)
+        ctx.stroke()
+
     elif mode == 'tunnel':
         p_z = (frame_no % 48) / 48.0
         # p_z = p_z ** 10
@@ -99,14 +120,9 @@ def gen_mask(ctx, frame_no, w, h, mode):
             #ctx.stroke()
 
 
-mode_mask = [
-    'test', 'fft_data', 'tunnel', 'tunnel_2',
-    'perlin'
-
-]
 
 def get_mask(frame_no, w, h, mode, blur_fact):
-    if mode in ['test', 'fft_data', 'tunnel', 'tunnel_2']:
+    if mode in cairo_mode :
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h,)
         ctx = cairo.Context(surface)
 
@@ -115,9 +131,10 @@ def get_mask(frame_no, w, h, mode, blur_fact):
         image_mask = Image.frombuffer(mode = 'RGBA', size = (w, h), data = surface.get_data())
         image_mask = image_mask.convert('L')
         # image_mask= ImageOps.invert(image_mask)
-    elif mode in ['perlin']:
+    elif mode in noise_mode:
         image_mask = gen_perlin_noise(w, h)
-
+    else:
+        raise ValueError(f"Invalid mode: {mode}")
     # blur_filter = ImageFilter.BoxBlur(radius=blur_fact)
     # image_mask = image_mask.filter(blur_filter)
     # image_mask = normalize(image_mask)
@@ -131,5 +148,5 @@ def get_mask(frame_no, w, h, mode, blur_fact):
 
 if __name__ == "__main__":
     for i in range(48):
-        get_mask(i, 960, 540, 'tunnel_2', 0)
+        get_mask(i, 960, 540, 'croix', 0)
 
