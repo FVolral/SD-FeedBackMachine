@@ -473,7 +473,7 @@ class Script(scripts.Script):
 
             with gr.Column():
                 i3d = gr.HTML("<h1 style=\"margin-bottom:0.85em\">In Paiting params</h1>")
-                inpainting_mode = gr.Dropdown(label='Inpainting Mode', elem_id=f"test_sampling", choices=mode_mask, value=None, type="index")
+                inpainting_mode_idx = gr.Dropdown(label='Inpainting Mode', elem_id=f"test_sampling", choices=mode_mask, value=None, type="index")
 
 
         i4 = gr.HTML("<p style=\"margin-bottom:0.75em\">Prompt Template, applied to each keyframe below</p>")
@@ -510,11 +510,11 @@ class Script(scripts.Script):
         key_frames = gr.Textbox(label="Keyframes:", lines=5, value="")
         return [i1, i2, i3, i3b, i3c, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos, tmpl_neg,
                 key_frames, denoising_strength, x_shift, y_shift, rotation, cas_dx, cas_dy, cfg_scale, propfolder, seed_march, smoothing,
-                add_noise, noise_strength, inpainting_mode, chkimg2img]
+                add_noise, noise_strength, inpainting_mode_idx, chkimg2img]
 
     def run(self, p, i1, i2, i3, i3b, i3c, i4, i5, i6, total_time, fps, vid_gif, vid_mp4, vid_webm, zoom_factor, tmpl_pos,
             tmpl_neg, key_frames, denoising_strength, x_shift, y_shift, rotation, cas_dx, cas_dy, cfg_scale, propfolder, seed_march, smoothing,
-            add_noise, noise_strength, inpainting_mode, is_img2img):
+            add_noise, noise_strength, inpainting_mode_idx, is_img2img):
 
         print(os.getcwd())
 
@@ -569,12 +569,12 @@ class Script(scripts.Script):
             'zoom': np.nan,
             'rotation': np.nan,
             'cfg_scale': np.nan,
-            'inpainting_mode': np.nan
+            'inpainting_mode_idx': np.nan
         }
 
         df = pd.DataFrame(variables, index=range(frame_count + 1))
         # Preload the dataframe with initial values.
-        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'cas_dx', 'cas_dy', 'noise', 'cfg_scale', 'inpainting_mode']] = [
+        df.loc[0, ['denoise', 'x_shift', 'y_shift', 'zoom', 'rotation', 'cas_dx', 'cas_dy', 'noise', 'cfg_scale', 'inpainting_mode_idx']] = [
             denoising_strength,
             x_shift / fps,
             y_shift / fps,
@@ -584,7 +584,7 @@ class Script(scripts.Script):
             cas_dy,
             noise_strength,
             cfg_scale,
-            inpainting_mode
+            inpainting_mode_idx
         ]
 
 
@@ -995,7 +995,7 @@ class Script(scripts.Script):
             """
             if hasattr(p, 'image_mask') and p.image_mask and get_mask:
                 init_img_w, init_img_h = init_img.size
-                p.image_mask = get_mask(frame_no, init_img_w, init_img_h, inpainting_mode, p.mask_blur)
+                p.image_mask = get_mask(frame_no, init_img_w, init_img_h, inpainting_mode[inpainting_mode_idx], p.mask_blur)
 
                 #image_mask = resize_from(image_mask, init_img)
                 #image_mask = resize_from(image_mask, post_processed_image)
