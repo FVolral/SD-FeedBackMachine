@@ -995,7 +995,7 @@ class Script(scripts.Script):
             """
             if hasattr(p, 'image_mask') and p.image_mask and get_mask:
                 init_img_w, init_img_h = init_img.size
-                p.image_mask = get_mask(frame_no, init_img_w, init_img_h, 'tunnel', 3)
+                p.image_mask = get_mask(frame_no, init_img_w, init_img_h, inpainting_mode, p.mask_blur)
 
                 #image_mask = resize_from(image_mask, init_img)
                 #image_mask = resize_from(image_mask, post_processed_image)
