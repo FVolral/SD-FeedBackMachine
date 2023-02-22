@@ -233,12 +233,15 @@ def pasteprop(img, props, propfolder, postProcess):
         prop2 = prop.resize((int(w2 * scale), int(h2 * scale)), Image.Resampling.LANCZOS).rotate(rotation, expand=True)
         w3, h3 = prop2.size
 
+        if prop2.mode != 'RGBA':
+            prop2 = prop2.convert('RGBA')
+
         r, g, b, a = prop2.split()
         a = a.point(lambda i: i * opacity)
         prop2 = Image.merge('RGBA', (r, g, b, a))
 
         tmplayer = Image.new('RGBA', img.size, (0, 0, 0, 0))
-
+        print(f"img.size:{img.size} | prop.size:{prop.size} | prop2.size:{prop2.size}")
         tmplayer.paste(prop2, (int(x - w3 / 2), int(y - h3 / 2)))
         img2 = Image.alpha_composite(img2, tmplayer)
 
@@ -1089,6 +1092,7 @@ class Script(scripts.Script):
                     frame_save += 1
 
             # save main frames
+            p.control_net_input_image = post_processed_image
             post_processed_image.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}.png"))
             # print(f"{frame_save:03}: {frame_no:03} frame")
             frame_save += 1

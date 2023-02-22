@@ -74,6 +74,11 @@ def gen_mask(ctx, frame_no, w, h, mode):
         ctx.move_to(w, 0)
         ctx.line_to(0, h)
         ctx.stroke()
+    elif mode == 'inverseur_1':
+        ctx.set_source_rgba(1.0, 1.0, 1.0, 1.0)
+        ctx.set_line_cap(cairo.LINE_CAP_SQUARE)
+        line_width = w / 10
+        ctx.set_line_width(line_width)
 
     elif mode == 'tunnel':
         p_z = (frame_no % 48) / 48.0
