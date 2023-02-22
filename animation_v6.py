@@ -239,8 +239,15 @@ def paste_img(front, back):
     return img2.convert('RGB')
 
 
-
-def pasteprop(img, props, propfolder, postProcess):
+"""
+    processLifeCylce:
+        0: before processing the image
+        1: after processing the image but before save the image
+        2: after processing the image and after save the image
+"""
+def pasteprop(frame_no, img, props, propfolder, processLifeCyle):
+    print("--- ENTER PASTE PROP --- ")
+    print(f"processLifeCyle = {processLifeCyle}")
     img2 = img.convert('RGBA')
 
     for propname in props:
@@ -252,14 +259,18 @@ def pasteprop(img, props, propfolder, postProcess):
         rotation = float(props[propname][6])
         opacity_a = float(props[propname][7])
         opacity_b = float(props[propname][8])
-        if not postProcess:
+        opacity_c = float(props[propname][9])
+        if processLifeCycle == 0:
             opacity = opacity_a
-        else:
+        elif processLifeCycle == 1:
             opacity = opacity_b
+        elif processLifeCycle == 2:
+            opacity = opacity_c
         if not os.path.exists(propfilename):
             print("Prop: Cannot locate file: " + propfilename)
             return img
 
+        print(f"debug pasteprop, ouvre propfilename: {propfilename}")
         prop = Image.open(propfilename)
         w2, h2 = prop.size
         prop2 = prop.resize((int(w2 * scale), int(h2 * scale)), Image.Resampling.LANCZOS).rotate(rotation, expand=True)
@@ -277,7 +288,11 @@ def pasteprop(img, props, propfolder, postProcess):
         tmplayer.paste(prop2, (int(x - w3 / 2), int(y - h3 / 2)))
         img2 = Image.alpha_composite(img2, tmplayer)
 
-    return img2.convert("RGB")
+    img2 = img2.convert("RGB")
+    print(f"debug pasteprop, sauve img2")
+    img2.save(f"debug_prop_{frame_no%48}.png")
+    print("---- return pasteprop --- ")
+    return img2
 
 
 def rendertext(img, textblocks):
@@ -906,8 +921,8 @@ class Script(scripts.Script):
                         # keyframe num | col_clear
                         apply_colour_corrections = False
 
-                    elif keyframe_command == "prop" and len(keyframe) == 9 and is_img2img:
-                        # keyframe num | prop | prop_filename | x pos | y pos | scale | rotation | opacity (before) | opacity (after)
+                    elif keyframe_command == "prop" and len(keyframe) == 10:
+                        # keyframe num | prop | prop_filename | x pos | y pos | scale | rotation | opacity (before) | opacity (after processing before save) |  opacity (after processing after SAVE) 
                         # bit of a hack, no prop name is supplied, but same function is used to draw.
                         # so the command is passed in place of prop name, which will be ignored anyway.
                         props[len(props)] = keyframe
@@ -1016,9 +1031,10 @@ class Script(scripts.Script):
             state.job = f"Major frame {frame_no} of {frame_count}"
 
             # HACK for controlNet
-            if 'init_img' in locals() and 'processed' in locals() and len(processed.images):
+            if 'init_img' in locals() and 'processed' in locals() and len(processed.images) > 0:
               # With ControlNet there is two image, the second is computed by controlNet to guide the network
               init_img = processed.images[0]
+              print(f"SUPER IMPORTANT : LEN {len(processed.images)}")
 
             p.init_images = [init_img]
 
@@ -1027,7 +1043,7 @@ class Script(scripts.Script):
                     PAST PROP ON PRE_PROCESSED IMAGE (IF ANY)
                 """
                 if len(props) > 0:
-                    post_processed_image = pasteprop(init_img, props, propfolder, False)
+                    post_processed_image = pasteprop(frame_no, init_img, props, propfolder, 0)
 
                 init_img.save('test___init_img.png')
 
@@ -1124,10 +1140,10 @@ class Script(scripts.Script):
 
 
             """
-                PAST PROP ON POST_PROCESSED IMAGE (IF ANY)
+                PAST PROP ON POST_PROCESSED IMAGE (IF ANY) BEFORE SAVE
             """
             if len(props) > 0:
-                post_processed_image = pasteprop(post_processed_image, props, propfolder, True)
+                post_processed_image = pasteprop(frame_no, post_processed_image, props, propfolder, 1)
                 props = {}
 
 
@@ -1161,8 +1177,16 @@ class Script(scripts.Script):
                     frame_save += 1
 
             # save main frames
-            p.control_net_input_image = post_processed_image
             post_processed_image.save(os.path.join(output_path, f"{output_filename}_{frame_save:05}.png"))
+
+            """
+                PAST PROP ON POST_PROCESSED IMAGE (IF ANY) AFTER SAVE
+            """
+            if len(props) > 0:
+                post_processed_image = pasteprop(frame_no, post_processed_image, props, propfolder, 2)
+                props = {}
+
+            p.control_net_input_image = post_processed_image
             # print(f"{frame_save:03}: {frame_no:03} frame")
             frame_save += 1
 
