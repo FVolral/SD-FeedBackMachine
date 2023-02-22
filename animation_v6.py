@@ -871,7 +871,6 @@ class Script(scripts.Script):
                 break
 
             # Check if keyframes exists for this frame
-            # print("process keyframes")
             if frame_no in keyframes:
                 # Keyframes exist for this frame.
                 print(f"\r\nKeyframe at {frame_no}: {keyframes[frame_no]}\r\n")
@@ -883,6 +882,7 @@ class Script(scripts.Script):
                         # keyframe num | seed | seed
                         p.seed = int(keyframe[1])
                         processing.fix_seed(p)
+
                     elif keyframe_command == "subseed" and len(keyframe) == 3:
                         # keyframe num | subseed | subseed
                         p.subseed = int(keyframe[1])
@@ -901,6 +901,7 @@ class Script(scripts.Script):
                         if frame_no > 0:
                             # Colour correction is set automatically above
                             initial_color_corrections = old_setup_color_correction(p.init_images[0])
+
                     elif keyframe_command == "col_clear" and len(keyframe) == 1 and is_img2img:
                         # keyframe num | col_clear
                         apply_colour_corrections = False
@@ -910,9 +911,11 @@ class Script(scripts.Script):
                         # bit of a hack, no prop name is supplied, but same function is used to draw.
                         # so the command is passed in place of prop name, which will be ignored anyway.
                         props[len(props)] = keyframe
+
                     elif keyframe_command == "set_stamp" and len(keyframe) == 7:
                         # keyframe num | set_stamp | stamp_name | stamp_filename | x pos | y pos | scale | rotation
                         stamps[keyframe[1].strip()] = keyframe[1:]
+
                     elif keyframe_command == "clear_stamp" and len(keyframe) == 2:
                         # keyframe num | clear_stamp | stamp_name
                         if keyframe[1].strip() in stamps:
@@ -921,20 +924,23 @@ class Script(scripts.Script):
                     elif keyframe_command == "set_text" and len(keyframe) == 10:
                         # keyframe num | set_text | name | text_prompt | x | y | w | h | fore_color | back_color | font_name
                         text_blocks[keyframe[1].strip()] = keyframe[1:]
+
                     elif keyframe_command == "clear_text" and len(keyframe) == 2:
                         # keyframe num | clear_text | textblock_name
                         if keyframe[1].strip() in text_blocks:
                             text_blocks.pop(keyframe[1].strip())
+
                     elif keyframe_command == "gen_mask":
                         # keyframe num | mode | json_param
+                        # TODO:
                         import pdb; pdb.set_trace()
                         pass
 
             # print("set processing options")
             new_prompt = [ prompt for prompt in my_prompts if prompt[0] == frame_no]
             if new_prompt:
-              p.prompt = new_prompt[0][1]
-              p.negative_prompt = new_prompt[0][2]
+                p.prompt = new_prompt[0][1]
+                p.negative_prompt = new_prompt[0][2]
 
             p.seed = int(df.loc[frame_no, ['seed_start']][0])
             p.subseed = None \
@@ -950,6 +956,7 @@ class Script(scripts.Script):
             p.do_not_save_grid = True
 
             varying_cgf_scale = float(df.loc[frame_no, ['cfg_scale']][0])
+
             if varying_cgf_scale:
                 p.cfg_scale = varying_cgf_scale
 
