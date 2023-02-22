@@ -57,6 +57,38 @@ def convert_from_image_to_cv2(img: Image) -> np.ndarray:
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 """
+    only save control_net_processed_img, no need to return anything
+"""
+def save_control_net_processed_img(frame_no, processed):
+    if not hasattr(processed, 'images'):
+        return
+
+    if not isinstance(processed.images, list):
+        return
+
+    if not len(processed.images) > 1:
+        return
+
+    control_net_processed_img = processed.images[1]
+
+    if isinstance(control_net_processed_img, Image.Image):
+        # no need to convert
+        control_net_processed_img.save(f"control_net_processed_img_{frame_no % 48}.png")
+        return
+
+    if isinstance(control_net_processed_img, np.ndarray):
+        try:
+            control_net_processed_img = convert_from_cv2_to_image(control_net_processed_img)
+            control_net_processed_img.save(f"control_net_processed_img_{frame_no % 48}.png")
+        except:
+            print("Error white save control_net_processed_img")
+            print(f"Cannot save image of type : {type(control_net_processed_img)}")
+            print(control_net_processed_img)
+    else:
+        print("Error white save control_net_processed_img")
+        print(f"Cannot save image of type : {type(control_net_processed_img)}")
+
+"""
     CONTENT AWARE SCALE PROCESSING
 """
 
@@ -975,7 +1007,19 @@ class Script(scripts.Script):
 
             # print("processing frame now.")
             state.job = f"Major frame {frame_no} of {frame_count}"
+
+            # HACK for controlNet
+            if 'init_img' in locals() and 'processed' in locals() and len(processed.images):
+              # With ControlNet there is two image, the second is computed by controlNet to guide the network
+              init_img = processed.images[0]
+
             p.init_images = [init_img]
+
+            if 'init_img' in locals() and init_img:
+                init_img.save('test___init_img.png')
+
+                if 'processed' in locals() and processed is not None:
+                    save_control_net_processed_img(frame_no, processed)
 
 
             # Debug, print out source frame
