@@ -1023,6 +1023,12 @@ class Script(scripts.Script):
             p.init_images = [init_img]
 
             if 'init_img' in locals() and init_img:
+                """
+                    PAST PROP ON PRE_PROCESSED IMAGE (IF ANY)
+                """
+                if len(props) > 0:
+                    post_processed_image = pasteprop(init_img, props, propfolder, False)
+
                 init_img.save('test___init_img.png')
 
                 if 'processed' in locals() and processed is not None:
@@ -1042,6 +1048,13 @@ class Script(scripts.Script):
             p.seed = 424242
             p.subseed = 424242
 
+            """                                  _
+               _ __  _ __ ___   ___ ___  ___ ___(_)_ __   __ _
+              | '_ \| '__/ _ \ / __/ _ \/ __/ __| | '_ \ / _` |
+              | |_) | | | (_) | (_|  __/\__ \__ \ | | | | (_| |
+              | .__/|_|  \___/ \___\___||___/___/_|_| |_|\__, |
+              |_|                                        |___/
+            """
             processed = processing.process_images(p)
 
             """
@@ -1056,6 +1069,7 @@ class Script(scripts.Script):
             #
             # Post-process destination frame
             #
+
             post_processed_image = processed.images[0].copy()
 
             #
@@ -1079,9 +1093,6 @@ class Script(scripts.Script):
 
                 post_processed_image = zoom_at2(post_processed_image, rot_per_frame, int(x_shift_cumulative), int(y_shift_cumulative),
                                     zoom_factor)
-                # Props
-                if len(props) > 0:
-                    post_processed_image = pasteprop(post_processed_image, props, propfolder, False)
 
                 # post_processed_image = content_aware_scale(post_processed_image, cas_dx, cas_dy)
 
@@ -1112,14 +1123,21 @@ class Script(scripts.Script):
                 )
 
 
+            """
+                PAST PROP ON POST_PROCESSED IMAGE (IF ANY)
+            """
             if len(props) > 0:
                 post_processed_image = pasteprop(post_processed_image, props, propfolder, True)
                 props = {}
 
+
             if len(text_blocks) > 0:
                 post_processed_image = rendertext(post_processed_image, text_blocks)
 
-            # Do content_aware_scale
+
+            """
+                Content Aware Scale
+            """
             if cas_dx != 0 or cas_dy != 0:
                 post_processed_image = content_aware_scale(post_processed_image, cas_dx, cas_dy)
 
