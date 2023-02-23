@@ -245,9 +245,9 @@ def paste_img(front, back):
         1: after processing the image but before save the image
         2: after processing the image and after save the image
 """
-def pasteprop(frame_no, img, props, propfolder, processLifeCyle):
+def pasteprop(frame_no, img, props, propfolder, processLifeCycle):
     print("--- ENTER PASTE PROP --- ")
-    print(f"processLifeCyle = {processLifeCyle}")
+    print(f"processLifeCyle = {processLifeCycle}")
     img2 = img.convert('RGBA')
 
     for propname in props:
