@@ -266,6 +266,7 @@ def pasteprop(frame_no, img, props, propfolder, processLifeCycle):
             opacity = opacity_b
         elif processLifeCycle == 2:
             opacity = opacity_c
+
         if not os.path.exists(propfilename):
             print("Prop: Cannot locate file: " + propfilename)
             return img
@@ -290,7 +291,7 @@ def pasteprop(frame_no, img, props, propfolder, processLifeCycle):
 
     img2 = img2.convert("RGB")
     print(f"debug pasteprop, sauve img2")
-    img2.save(f"debug_prop_{frame_no%48}.png")
+    img2.save(f"debug_prop_life_{processLifeCycle}_{frame_no%48}.png")
     print("---- return pasteprop --- ")
     return img2
 
@@ -1088,9 +1089,6 @@ class Script(scripts.Script):
 
             post_processed_image = processed.images[0].copy()
 
-            #
-            # Pre-process source frame
-            #
             # print("pre process frame")
             if post_processed_image is not None:
                 # Update transform details
@@ -1107,8 +1105,13 @@ class Script(scripts.Script):
                 x_shift_cumulative = x_shift_cumulative + x_shift_per_frame
                 y_shift_cumulative = y_shift_cumulative + y_shift_per_frame
 
-                post_processed_image = zoom_at2(post_processed_image, rot_per_frame, int(x_shift_cumulative), int(y_shift_cumulative),
-                                    zoom_factor)
+                post_processed_image = zoom_at2(
+                    post_processed_image,
+                    rot_per_frame,
+                    int(x_shift_cumulative),
+                    int(y_shift_cumulative),
+                    zoom_factor
+                )
 
                 # post_processed_image = content_aware_scale(post_processed_image, cas_dx, cas_dy)
 
@@ -1144,7 +1147,6 @@ class Script(scripts.Script):
             """
             if len(props) > 0:
                 post_processed_image = pasteprop(frame_no, post_processed_image, props, propfolder, 1)
-                props = {}
 
 
             if len(text_blocks) > 0:
@@ -1183,6 +1185,7 @@ class Script(scripts.Script):
                 PAST PROP ON POST_PROCESSED IMAGE (IF ANY) AFTER SAVE
             """
             if len(props) > 0:
+                print("colle props 3")
                 post_processed_image = pasteprop(frame_no, post_processed_image, props, propfolder, 2)
                 props = {}
 
